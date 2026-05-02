@@ -491,6 +491,7 @@ const DEFAULT_SETTINGS = {
   vehicleReg: '232-D-1993',
   taxYear: new Date().getFullYear(),
   company: 'Dublin Fuels Ltd',
+  googleMapsKey: '', // Optional — paste your Google Places API key here for richer address search
   // Revenue Civil Service rates — EV treated as 1,201–1,500cc band
   bands: [
     { name: 'Band 1', from: 0, to: 1500, rate: 0.4340 },
@@ -1144,49 +1145,147 @@ async function searchLocations(key, query) {
   sug.innerHTML = '<div class="loc-sug-loading">Searching…</div>';
   sug.style.display = 'block';
 
+  const settings = loadSettings();
+  const apiKey = (settings.googleMapsKey || '').trim();
+
   try {
-    // Nominatim search — Ireland only (countrycodes=ie + bounded viewbox)
-    // viewbox format: left,top,right,bottom = min_lon, max_lat, max_lon, min_lat
-    // Ireland bounds: lon -10.7 to -5.3, lat 51.3 to 55.5
-    const viewbox = '-10.7,55.5,-5.3,51.3';
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ie&limit=10&addressdetails=1&bounded=1&viewbox=${viewbox}`;
-    const res = await fetch(url, {
-      headers: { 'Accept': 'application/json' }
-    });
-    if (!res.ok) throw new Error('Search failed');
-    let results = await res.json();
-
-    // Defensive filter: drop anything that's not in Ireland
-    // (Nominatim usually respects countrycodes but belt-and-braces)
-    results = results.filter(r => {
-      const cc = r.address && r.address.country_code;
-      return !cc || cc === 'ie';
-    });
-
-    if (!results.length) {
-      sug.innerHTML = '<div class="loc-sug-empty">No matches in Ireland — try a street name or nearby landmark</div>';
-      return;
+    if (apiKey) {
+      await searchLocationsGoogle(key, query, apiKey);
+    } else {
+      await searchLocationsOSM(key, query);
     }
-
-    sug.innerHTML = results.map(r => {
-      const rich = formatNominatimResultRich(r);
-      const flat = formatNominatimResult(r);
-      const lat = parseFloat(r.lat);
-      const lon = parseFloat(r.lon);
-      const safe = JSON.stringify({ name: flat, lat, lon }).replace(/"/g, '&quot;');
-      return `
-        <button type="button" class="loc-sug-item" onmousedown="event.preventDefault();" onclick='pickLocation("${key}", ${safe})'>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0E3D7A" stroke-width="1.8" style="flex-shrink:0; margin-top: 2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          <span class="loc-sug-text">
-            <span class="loc-sug-primary">${escapeHtml(rich.primary)}</span>
-            ${rich.secondary ? `<span class="loc-sug-secondary">${escapeHtml(rich.secondary)}</span>` : ''}
-          </span>
-        </button>`;
-    }).join('');
   } catch (err) {
     console.error('Search error:', err);
     sug.innerHTML = '<div class="loc-sug-empty">Search unavailable — type the address manually</div>';
   }
+}
+
+// --- Google Places search (when API key is configured) ---
+async function searchLocationsGoogle(key, query, apiKey) {
+  const sug = document.getElementById('loc-sug-' + key);
+  // Use Places API (new) Autocomplete endpoint — restricted to Ireland
+  const url = 'https://places.googleapis.com/v1/places:autocomplete';
+  const body = {
+    input: query,
+    includedRegionCodes: ['ie'],
+    languageCode: 'en'
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': 'suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('Google Places error:', res.status, errText);
+    if (res.status === 403) {
+      sug.innerHTML = '<div class="loc-sug-empty">Google API key invalid or restricted — check Settings</div>';
+      return;
+    }
+    throw new Error('Google search failed: ' + res.status);
+  }
+  const data = await res.json();
+  const suggestions = (data.suggestions || []).filter(s => s.placePrediction);
+
+  if (!suggestions.length) {
+    sug.innerHTML = '<div class="loc-sug-empty">No matches in Ireland — try a different query</div>';
+    return;
+  }
+
+  sug.innerHTML = suggestions.map(s => {
+    const p = s.placePrediction;
+    const sf = p.structuredFormat || {};
+    const primary = (sf.mainText && sf.mainText.text) || p.text.text;
+    const secondary = (sf.secondaryText && sf.secondaryText.text) || '';
+    const placeId = p.placeId;
+    const flat = secondary ? `${primary}, ${secondary}` : primary;
+    // Pass placeId; we'll fetch coords on selection
+    const safe = JSON.stringify({ name: flat, placeId }).replace(/"/g, '&quot;');
+    return `
+      <button type="button" class="loc-sug-item" onmousedown="event.preventDefault();" onclick='pickLocationGoogle("${key}", ${safe})'>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0E3D7A" stroke-width="1.8" style="flex-shrink:0; margin-top: 2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span class="loc-sug-text">
+          <span class="loc-sug-primary">${escapeHtml(primary)}</span>
+          ${secondary ? `<span class="loc-sug-secondary">${escapeHtml(secondary)}</span>` : ''}
+        </span>
+      </button>`;
+  }).join('');
+}
+
+// When user picks a Google suggestion, fetch coords via Place Details
+async function pickLocationGoogle(fieldKey, payload) {
+  const settings = loadSettings();
+  const apiKey = (settings.googleMapsKey || '').trim();
+  if (!apiKey) {
+    pickLocation(fieldKey, payload); // fall through to plain pick without coords
+    return;
+  }
+  // Show name immediately
+  const input = document.getElementById('tf-' + fieldKey);
+  if (input) input.value = payload.name;
+  hideSuggestions(fieldKey);
+
+  try {
+    const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(payload.placeId)}`;
+    const res = await fetch(url, {
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'location'
+      }
+    });
+    if (!res.ok) throw new Error('Place details failed: ' + res.status);
+    const data = await res.json();
+    const lat = data.location && data.location.latitude;
+    const lon = data.location && data.location.longitude;
+    pickLocation(fieldKey, { name: payload.name, lat, lon });
+  } catch (err) {
+    console.error('Place details error:', err);
+    // Fall back to picking without coords (auto-distance won't work for this trip)
+    pickLocation(fieldKey, { name: payload.name });
+  }
+}
+
+// --- OpenStreetMap (Nominatim) search — fallback when no Google key is set ---
+async function searchLocationsOSM(key, query) {
+  const sug = document.getElementById('loc-sug-' + key);
+  // Nominatim search — Ireland only (countrycodes=ie + bounded viewbox)
+  const viewbox = '-10.7,55.5,-5.3,51.3';
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ie&limit=10&addressdetails=1&bounded=1&viewbox=${viewbox}`;
+  const res = await fetch(url, {
+    headers: { 'Accept': 'application/json' }
+  });
+  if (!res.ok) throw new Error('Search failed');
+  let results = await res.json();
+
+  results = results.filter(r => {
+    const cc = r.address && r.address.country_code;
+    return !cc || cc === 'ie';
+  });
+
+  if (!results.length) {
+    sug.innerHTML = '<div class="loc-sug-empty">No matches in Ireland — try a street name or nearby landmark</div>';
+    return;
+  }
+
+  sug.innerHTML = results.map(r => {
+    const rich = formatNominatimResultRich(r);
+    const flat = formatNominatimResult(r);
+    const lat = parseFloat(r.lat);
+    const lon = parseFloat(r.lon);
+    const safe = JSON.stringify({ name: flat, lat, lon }).replace(/"/g, '&quot;');
+    return `
+      <button type="button" class="loc-sug-item" onmousedown="event.preventDefault();" onclick='pickLocation("${key}", ${safe})'>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0E3D7A" stroke-width="1.8" style="flex-shrink:0; margin-top: 2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span class="loc-sug-text">
+          <span class="loc-sug-primary">${escapeHtml(rich.primary)}</span>
+          ${rich.secondary ? `<span class="loc-sug-secondary">${escapeHtml(rich.secondary)}</span>` : ''}
+        </span>
+      </button>`;
+  }).join('');
 }
 
 // Convert Nominatim's verbose result into a structured display:
@@ -1366,13 +1465,19 @@ async function useCurrentLocation(key) {
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       const { latitude, longitude } = pos.coords;
+      const settings = loadSettings();
+      const apiKey = (settings.googleMapsKey || '').trim();
       try {
-        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        const data = await res.json();
-        const name = formatNominatimResult(data) || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        let name;
+        if (apiKey) {
+          name = await reverseGeocodeGoogle(latitude, longitude, apiKey);
+        } else {
+          name = await reverseGeocodeOSM(latitude, longitude);
+        }
+        if (!name) name = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
         pickLocation(key, { name, lat: latitude, lon: longitude });
       } catch (err) {
+        console.warn('Reverse geocode failed:', err);
         const fallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
         pickLocation(key, { name: fallback, lat: latitude, lon: longitude });
       }
@@ -1388,6 +1493,29 @@ async function useCurrentLocation(key) {
     },
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
   );
+}
+
+// Reverse geocoding helpers — turn lat/lon into a readable address
+async function reverseGeocodeOSM(lat, lon) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return formatNominatimResult(data);
+}
+
+async function reverseGeocodeGoogle(lat, lon, apiKey) {
+  // Use Geocoding API for reverse lookup (works with the Places key on the same project)
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (data.status !== 'OK' || !data.results || !data.results.length) return null;
+  // Prefer the most specific result (street address) over plus_code or political
+  const preferred = data.results.find(r =>
+    r.types && (r.types.includes('street_address') || r.types.includes('premise'))
+  ) || data.results[0];
+  return preferred.formatted_address;
 }
 
 /* ============================================================
@@ -2212,6 +2340,15 @@ function renderSettings(settings) {
       <input id="set-company" value="${escapeAttr(settings.company)}">
     </div>
 
+    <div class="section-title">Address search</div>
+    <div class="field">
+      <label>Google Maps API key <span style="color:#aaa; font-weight:400;">(optional)</span></label>
+      <input id="set-gmaps-key" type="password" autocomplete="off" placeholder="Leave blank to use OpenStreetMap" value="${escapeAttr(settings.googleMapsKey || '')}">
+      <p style="font-size:11px; color:#888; margin: 6px 4px 0; line-height:1.5;">
+        Stored only on this device. With a key set, address search uses Google Places (better Irish coverage). Without it, OpenStreetMap is used (free, no key needed).
+      </p>
+    </div>
+
     <div class="section-title">Revenue rate bands (€/km)</div>
     <p style="font-size: 12px; color: #888; margin: 0 0 12px 4px;">EV treated as 1,201–1,500cc. Update if Revenue revises rates.</p>
 
@@ -2236,6 +2373,8 @@ function saveSettingsForm() {
   settings.vehicleReg = document.getElementById('set-vehicle').value;
   settings.taxYear = parseInt(document.getElementById('set-year').value) || settings.taxYear;
   settings.company = document.getElementById('set-company').value;
+  const keyEl = document.getElementById('set-gmaps-key');
+  if (keyEl) settings.googleMapsKey = keyEl.value.trim();
   for (let i = 0; i < settings.bands.length; i++) {
     const v = parseFloat(document.getElementById(`set-rate-${i}`).value);
     if (!isNaN(v)) settings.bands[i].rate = v;
