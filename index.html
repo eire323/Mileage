@@ -1220,15 +1220,14 @@ async function searchLocationsGoogle(key, query, apiKey) {
 async function pickLocationGoogle(fieldKey, payload) {
   const settings = loadSettings();
   const apiKey = (settings.googleMapsKey || '').trim();
-  if (!apiKey) {
-    pickLocation(fieldKey, payload); // fall through to plain pick without coords
-    return;
-  }
-  // Show name immediately
-  const input = document.getElementById('tf-' + fieldKey);
-  if (input) input.value = payload.name;
-  hideSuggestions(fieldKey);
 
+  // Always update name + editingTrip immediately so the field persists
+  pickLocation(fieldKey, { name: payload.name });
+
+  if (!apiKey || !payload.placeId) return;
+
+  // Now fetch coordinates so auto-distance can work
+  showRouteHint('Fetching location coordinates…', 'info');
   try {
     const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(payload.placeId)}`;
     const res = await fetch(url, {
@@ -1237,15 +1236,27 @@ async function pickLocationGoogle(fieldKey, payload) {
         'X-Goog-FieldMask': 'location'
       }
     });
-    if (!res.ok) throw new Error('Place details failed: ' + res.status);
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Place details failed:', res.status, errText);
+      let msg = 'Could not get coordinates';
+      if (res.status === 403) msg = 'Google key restricted — enable Places API (New) for Place Details';
+      else if (res.status === 404) msg = 'Place not found';
+      showRouteHint(msg, 'warn');
+      return;
+    }
     const data = await res.json();
     const lat = data.location && data.location.latitude;
     const lon = data.location && data.location.longitude;
+    if (typeof lat !== 'number' || typeof lon !== 'number') {
+      showRouteHint('Coordinates missing from place details', 'warn');
+      return;
+    }
+    // Re-pick with coords — this stores them on editingTrip and triggers auto-distance
     pickLocation(fieldKey, { name: payload.name, lat, lon });
   } catch (err) {
     console.error('Place details error:', err);
-    // Fall back to picking without coords (auto-distance won't work for this trip)
-    pickLocation(fieldKey, { name: payload.name });
+    showRouteHint('Could not fetch coordinates: ' + (err.message || 'unknown'), 'warn');
   }
 }
 
