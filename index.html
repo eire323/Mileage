@@ -133,6 +133,44 @@
   .field textarea { resize: vertical; min-height: 60px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+  /* Location field with autocomplete + GPS button */
+  .loc-field { position: relative; }
+  .loc-input-wrap { position: relative; }
+  .loc-input { padding-right: 44px !important; }
+  .loc-gps-btn {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    width: 36px; height: 36px; border-radius: 8px;
+    background: transparent; border: none; color: #0E3D7A;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .loc-gps-btn:active { background: #DCE9F8; }
+  .loc-suggestions {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: #fff; border: 0.5px solid rgba(0,0,0,0.12);
+    border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    z-index: 50; max-height: 280px; overflow-y: auto;
+  }
+  .loc-sug-header {
+    font-size: 10.5px; color: #888; text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 600;
+    padding: 10px 14px 4px;
+  }
+  .loc-sug-item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 11px 14px;
+    background: none; border: none;
+    text-align: left; font-size: 14px; color: #1a1a1a;
+    cursor: pointer; font-family: inherit;
+    border-bottom: 0.5px solid rgba(0,0,0,0.04);
+  }
+  .loc-sug-item:last-child { border-bottom: none; }
+  .loc-sug-item:active { background: #F2F6FB; }
+  .loc-sug-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .loc-sug-loading, .loc-sug-empty {
+    padding: 14px; font-size: 13px; color: #888; text-align: center;
+  }
+
   .preview-card { background: #F2F6FB; border-radius: 12px; padding: 14px; margin: 14px 0; }
   .preview-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
   .preview-row .k { color: #6b6b6b; }
@@ -968,6 +1006,215 @@ setInterval(() => {
 }, 1000);
 
 /* ============================================================
+   LOCATION FIELDS — OpenStreetMap autocomplete + GPS
+   ============================================================ */
+const RECENT_LOCATIONS_KEY = 'dublin_fuels_recent_locations_v1';
+const MAX_RECENTS = 8;
+
+function loadRecentLocations() {
+  try {
+    const raw = localStorage.getItem(RECENT_LOCATIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveRecentLocation(name) {
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  let recents = loadRecentLocations();
+  // Remove if already present (move to top), then prepend
+  recents = recents.filter(r => r.name.toLowerCase() !== trimmed.toLowerCase());
+  recents.unshift({ name: trimmed, ts: Date.now() });
+  recents = recents.slice(0, MAX_RECENTS);
+  localStorage.setItem(RECENT_LOCATIONS_KEY, JSON.stringify(recents));
+}
+
+// Build a location field with current-location button + suggestions dropdown
+function renderLocationField(key, currentValue) {
+  const placeholder = key === 'from' ? 'Where you started' : 'Where you went';
+  return `
+    <div class="loc-field" data-key="${key}">
+      <div class="loc-input-wrap">
+        <input id="tf-${key}" class="loc-input" placeholder="${placeholder}"
+               value="${escapeAttr(currentValue)}"
+               autocomplete="off"
+               oninput="onLocationInput('${key}', this.value)"
+               onfocus="onLocationFocus('${key}')"
+               onblur="onLocationBlur('${key}')">
+        <button class="loc-gps-btn" type="button" onclick="useCurrentLocation('${key}')" aria-label="Use current location">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+            <circle cx="12" cy="12" r="8"/>
+          </svg>
+        </button>
+      </div>
+      <div class="loc-suggestions" id="loc-sug-${key}" style="display:none;"></div>
+    </div>
+  `;
+}
+
+let _locTimer = null;
+let _locActiveKey = null;
+
+function onLocationFocus(key) {
+  _locActiveKey = key;
+  // Show recents immediately on focus if input is empty
+  const input = document.getElementById('tf-' + key);
+  if (input && !input.value.trim()) {
+    showRecentLocations(key);
+  }
+}
+
+function onLocationBlur(key) {
+  // Delay hiding so click on suggestion can register first
+  setTimeout(() => {
+    const sug = document.getElementById('loc-sug-' + key);
+    if (sug && _locActiveKey === key) sug.style.display = 'none';
+  }, 200);
+}
+
+function onLocationInput(key, value) {
+  updateField(key, value);
+  if (_locTimer) clearTimeout(_locTimer);
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    showRecentLocations(key);
+    return;
+  }
+  if (trimmed.length < 3) {
+    hideSuggestions(key);
+    return;
+  }
+  // Debounce 350ms — Nominatim asks us to be polite
+  _locTimer = setTimeout(() => searchLocations(key, trimmed), 350);
+}
+
+function showRecentLocations(key) {
+  const sug = document.getElementById('loc-sug-' + key);
+  if (!sug) return;
+  const recents = loadRecentLocations();
+  if (recents.length === 0) { sug.style.display = 'none'; return; }
+  sug.innerHTML = `
+    <div class="loc-sug-header">Recent</div>
+    ${recents.map(r => `
+      <button type="button" class="loc-sug-item" onmousedown="event.preventDefault();" onclick="pickLocation('${key}', ${JSON.stringify(r.name).replace(/"/g, '&quot;')})">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.8" style="flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span>${escapeHtml(r.name)}</span>
+      </button>
+    `).join('')}
+  `;
+  sug.style.display = 'block';
+}
+
+function hideSuggestions(key) {
+  const sug = document.getElementById('loc-sug-' + key);
+  if (sug) sug.style.display = 'none';
+}
+
+async function searchLocations(key, query) {
+  const sug = document.getElementById('loc-sug-' + key);
+  if (!sug) return;
+  sug.innerHTML = '<div class="loc-sug-loading">Searching…</div>';
+  sug.style.display = 'block';
+
+  try {
+    // Nominatim search — restricted to Ireland for relevance, but works elsewhere too
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ie,gb&limit=6&addressdetails=1`;
+    const res = await fetch(url, {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error('Search failed');
+    const results = await res.json();
+
+    if (!results.length) {
+      sug.innerHTML = '<div class="loc-sug-empty">No matches — keep typing or tap to use what you typed</div>';
+      return;
+    }
+
+    sug.innerHTML = results.map(r => {
+      const display = formatNominatimResult(r);
+      const safe = JSON.stringify(display).replace(/"/g, '&quot;');
+      return `
+        <button type="button" class="loc-sug-item" onmousedown="event.preventDefault();" onclick="pickLocation('${key}', ${safe})">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0E3D7A" stroke-width="1.8" style="flex-shrink:0;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>${escapeHtml(display)}</span>
+        </button>`;
+    }).join('');
+  } catch (err) {
+    console.error('Search error:', err);
+    sug.innerHTML = '<div class="loc-sug-empty">Search unavailable — type the address manually</div>';
+  }
+}
+
+// Convert Nominatim's verbose result into a tidier display name
+function formatNominatimResult(r) {
+  const a = r.address || {};
+  const parts = [];
+  // Prefer named place: business, attraction, suburb
+  const name = a.amenity || a.shop || a.tourism || a.building || a.attraction || a.office;
+  if (name) parts.push(name);
+  // Locality
+  const locality = a.suburb || a.village || a.town || a.city || a.county;
+  if (locality && (!name || locality.toLowerCase() !== name.toLowerCase())) parts.push(locality);
+  // Country if foreign
+  if (a.country_code && a.country_code !== 'ie') parts.push(a.country);
+  if (parts.length === 0) {
+    // Fallback: take first 2 components of display_name
+    return r.display_name.split(',').slice(0, 2).join(', ').trim();
+  }
+  return parts.join(', ');
+}
+
+function pickLocation(key, name) {
+  const input = document.getElementById('tf-' + key);
+  if (input) input.value = name;
+  updateField(key, name);
+  hideSuggestions(key);
+}
+
+async function useCurrentLocation(key) {
+  if (!navigator.geolocation) {
+    toast('Location not supported on this device');
+    return;
+  }
+  if (!window.isSecureContext) {
+    toast('Location needs HTTPS — open the hosted version');
+    return;
+  }
+  const input = document.getElementById('tf-' + key);
+  if (input) {
+    input.placeholder = 'Getting location…';
+    input.value = '';
+  }
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        const name = formatNominatimResult(data) || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        pickLocation(key, name);
+      } catch (err) {
+        const fallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        pickLocation(key, fallback);
+      }
+    },
+    (err) => {
+      const msgs = {
+        1: 'Location permission denied',
+        2: 'Location unavailable — try outdoors',
+        3: 'Location request timed out'
+      };
+      toast(msgs[err.code] || 'Could not get location');
+      if (input) input.placeholder = key === 'from' ? 'Where you started' : 'Where you went';
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+  );
+}
+
+/* ============================================================
    MANUAL ENTRY & SAVE
    ============================================================ */
 function renderManual(settings) {
@@ -1023,12 +1270,12 @@ function renderTripForm(title, backRoute, backParams = {}) {
 
     <div class="field">
       <label>From</label>
-      <input id="tf-from" placeholder="e.g. Tallaght HQ" value="${escapeAttr(editingTrip.from || '')}" oninput="updateField('from', this.value)">
+      ${renderLocationField('from', editingTrip.from || '')}
     </div>
 
     <div class="field">
       <label>To</label>
-      <input id="tf-to" placeholder="e.g. Galway client site" value="${escapeAttr(editingTrip.to || '')}" oninput="updateField('to', this.value)">
+      ${renderLocationField('to', editingTrip.to || '')}
     </div>
 
     <div class="field">
@@ -1128,6 +1375,11 @@ function saveCurrentTrip(backRoute) {
     cumKm = t.cumulativeKm;
   }
   saveTrips(sorted);
+
+  // Remember locations for autocomplete next time
+  saveRecentLocation(editingTrip.from);
+  saveRecentLocation(editingTrip.to);
+
   editingTrip = null;
   toast(editingTrip?.isEdit ? 'Trip updated' : 'Trip saved');
   navigate('home');
@@ -1607,25 +1859,74 @@ function renderFilePanel(url, filename, sizeKb, blob) {
   `;
 }
 
-async function shareLastExport() {
+function shareLastExport() {
   const blob = window._lastExportBlob;
   const filename = window._lastExportFilename;
+  const url = window._lastExportUrl;
   if (!blob || !filename) {
     toast('No file to share — generate first');
     return;
   }
+
+  // Build the File and call share synchronously — no awaits before share()
+  // Some browsers strip the user-gesture flag if anything async runs first
+  let file;
   try {
-    const file = new File([blob], filename, { type: blob.type });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: filename, text: filename });
-    } else {
-      toast('Sharing not supported on this browser');
-    }
-  } catch (err) {
-    if (err && err.name === 'AbortError') return;
-    console.error('Share error:', err);
-    toast('Share failed: ' + (err.message || 'unknown'));
+    file = new File([blob], filename, { type: blob.type });
+  } catch (e) {
+    showShareFallback(url, filename, 'Could not prepare file: ' + e.message);
+    return;
   }
+
+  if (!navigator.share) {
+    showShareFallback(url, filename, 'Sharing not supported on this browser');
+    return;
+  }
+  if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+    showShareFallback(url, filename, 'This browser cannot share Excel files directly');
+    return;
+  }
+
+  // Fire share() — note: NOT awaited. We attach handlers so the user gesture is preserved.
+  navigator.share({ files: [file], title: filename, text: filename })
+    .then(() => {
+      // Success — share sheet was used
+    })
+    .catch((err) => {
+      if (err && err.name === 'AbortError') return; // user cancelled, that's fine
+      console.error('Share error:', err);
+      // The most common error here: NotAllowedError / permission denied
+      // This usually means HTTPS isn't active OR the file mime type is blocked
+      const msg = err.name === 'NotAllowedError'
+        ? 'Browser blocked the share. Use "Download file" instead.'
+        : 'Share failed: ' + (err.message || err.name || 'unknown');
+      showShareFallback(url, filename, msg);
+    });
+}
+
+// Show a sticky helper card pointing the user back to the Download button
+function showShareFallback(url, filename, reason) {
+  // Remove any existing fallback
+  const existing = document.getElementById('share-fallback');
+  if (existing) existing.remove();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'share-fallback';
+  wrap.style.cssText = 'position:fixed;left:16px;right:16px;bottom:90px;background:#fff;border:1px solid #C8453B;border-radius:12px;padding:14px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,0.18);max-width:480px;margin:0 auto;';
+  wrap.innerHTML = `
+    <div style="font-size:13px; color:#791F1F; font-weight:500; margin-bottom:6px;">Sharing didn't work</div>
+    <div style="font-size:12px; color:#6b6b6b; margin-bottom:12px;">${escapeHtml(reason)}</div>
+    <a href="${url}" download="${filename}"
+       style="display:block; background:#0E3D7A; color:#fff; text-align:center; text-decoration:none; padding:12px; border-radius:10px; font-size:14px; font-weight:500; margin-bottom:8px;"
+       onclick="setTimeout(() => { const el=document.getElementById('share-fallback'); if(el) el.remove(); }, 500);">
+      Download file instead
+    </a>
+    <button onclick="document.getElementById('share-fallback').remove();"
+       style="display:block; width:100%; background:#F2F6FB; color:#0E3D7A; border:none; padding:10px; border-radius:10px; font-size:13px; font-weight:500;">
+      Dismiss
+    </button>
+  `;
+  document.body.appendChild(wrap);
 }
 
 // Diagnostic — runs every step independently and reports results inline.
