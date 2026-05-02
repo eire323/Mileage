@@ -1133,8 +1133,9 @@ async function searchLocations(key, query) {
   sug.style.display = 'block';
 
   try {
-    // Nominatim search — restricted to Ireland for relevance, but works elsewhere too
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ie,gb&limit=6&addressdetails=1`;
+    // Nominatim search — restricted to Ireland (Republic of Ireland)
+    // viewbox biases ranking toward results within the Irish bounding box
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ie&limit=6&addressdetails=1&bounded=1&viewbox=-10.7,55.5,-5.3,51.3`;
     const res = await fetch(url, {
       headers: { 'Accept': 'application/json' }
     });
@@ -1142,7 +1143,7 @@ async function searchLocations(key, query) {
     const results = await res.json();
 
     if (!results.length) {
-      sug.innerHTML = '<div class="loc-sug-empty">No matches — keep typing or tap to use what you typed</div>';
+      sug.innerHTML = '<div class="loc-sug-empty">No matches in Ireland — try a different name or type the address manually</div>';
       return;
     }
 
