@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#2C5F4F">
+<meta name="theme-color" content="#0E3D7A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
@@ -20,7 +20,7 @@
   html, body { margin: 0; padding: 0; }
   body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #F4F1E8;
+    background: #F2F6FB;
     color: #1a1a1a;
     font-size: 15px;
     line-height: 1.5;
@@ -35,7 +35,7 @@
 
   /* Top bar */
   .appbar {
-    background: #2C5F4F; color: #fff;
+    background: #0E3D7A; color: #fff;
     padding: calc(env(safe-area-inset-top) + 14px) 18px 16px;
     position: sticky; top: 0; z-index: 10;
   }
@@ -62,7 +62,7 @@
   .stat { background: #fff; border-radius: 12px; padding: 14px; border: 0.5px solid rgba(0,0,0,0.08); }
   .stat-label { font-size: 11px; color: #6b6b6b; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
   .stat-value { font-family: 'Instrument Serif', Georgia, serif; font-size: 32px; font-weight: 400; color: #1a1a1a; margin-top: 2px; line-height: 1.1; }
-  .stat-sub { font-size: 12px; color: #2C5F4F; margin-top: 4px; font-weight: 500; }
+  .stat-sub { font-size: 12px; color: #0E3D7A; margin-top: 4px; font-weight: 500; }
 
   .section-title { font-size: 12px; font-weight: 600; color: #6b6b6b; text-transform: uppercase; letter-spacing: 0.6px; margin: 14px 4px 8px; }
 
@@ -75,13 +75,13 @@
   }
   .trip-icon {
     width: 40px; height: 40px; border-radius: 11px;
-    background: #E1F5EE; display: flex; align-items: center; justify-content: center;
+    background: #DCE9F8; display: flex; align-items: center; justify-content: center;
     margin-right: 12px; flex-shrink: 0;
   }
   .trip-info { flex: 1; min-width: 0; }
   .trip-route { font-size: 14px; font-weight: 500; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .trip-meta { font-size: 12px; color: #888; margin-top: 2px; }
-  .trip-amount { text-align: right; font-size: 14px; font-weight: 500; color: #2C5F4F; }
+  .trip-amount { text-align: right; font-size: 14px; font-weight: 500; color: #0E3D7A; }
   .trip-km { font-size: 11px; color: #888; margin-top: 1px; }
 
   /* Empty state */
@@ -93,9 +93,9 @@
   .fab {
     position: fixed; bottom: calc(76px + env(safe-area-inset-bottom)); right: max(16px, calc((100vw - 480px) / 2 + 16px));
     width: 56px; height: 56px; border-radius: 18px;
-    background: #2C5F4F; color: #fff; border: none;
+    background: #0E3D7A; color: #fff; border: none;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 16px rgba(44,95,79,0.35);
+    box-shadow: 0 4px 16px rgba(14,61,122,0.35);
     z-index: 20;
   }
   .fab svg { width: 26px; height: 26px; }
@@ -113,7 +113,7 @@
     padding: 4px; background: none; border: none; color: #888; font-size: 10.5px;
     font-weight: 500;
   }
-  .tab.active { color: #2C5F4F; }
+  .tab.active { color: #0E3D7A; }
   .tab svg { width: 22px; height: 22px; }
 
   /* Forms */
@@ -128,28 +128,28 @@
     transition: border-color 0.15s;
   }
   .field input:focus, .field textarea:focus, .field select:focus {
-    outline: none; border-color: #2C5F4F; box-shadow: 0 0 0 3px rgba(44,95,79,0.12);
+    outline: none; border-color: #0E3D7A; box-shadow: 0 0 0 3px rgba(14,61,122,0.12);
   }
   .field textarea { resize: vertical; min-height: 60px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-  .preview-card { background: #F4F1E8; border-radius: 12px; padding: 14px; margin: 14px 0; }
+  .preview-card { background: #F2F6FB; border-radius: 12px; padding: 14px; margin: 14px 0; }
   .preview-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
   .preview-row .k { color: #6b6b6b; }
   .preview-row .v { color: #1a1a1a; font-weight: 500; }
   .preview-row.total { padding-top: 10px; border-top: 0.5px solid rgba(0,0,0,0.1); margin-top: 6px; }
-  .preview-row.total .v { color: #2C5F4F; font-size: 16px; }
+  .preview-row.total .v { color: #0E3D7A; font-size: 16px; }
 
   /* Buttons */
   .btn-primary {
-    background: #2C5F4F; color: #fff; border: none; border-radius: 12px;
+    background: #0E3D7A; color: #fff; border: none; border-radius: 12px;
     padding: 14px; width: 100%; font-size: 15px; font-weight: 500;
     margin-top: 8px;
   }
-  .btn-primary:active { background: #234E40; }
-  .btn-primary:disabled { background: #B5C2BC; }
+  .btn-primary:active { background: #0A2E5C; }
+  .btn-primary:disabled { background: #A8C5E8; }
   .btn-secondary {
-    background: #fff; color: #2C5F4F; border: 1px solid #2C5F4F;
+    background: #fff; color: #0E3D7A; border: 1px solid #0E3D7A;
     border-radius: 12px; padding: 13px; width: 100%; font-size: 15px; font-weight: 500;
     margin-top: 8px;
   }
@@ -162,12 +162,12 @@
 
   /* GPS card */
   .gps-card {
-    background: #2C5F4F; color: #fff; border-radius: 16px;
+    background: #0E3D7A; color: #fff; border-radius: 16px;
     padding: 20px; margin-bottom: 14px;
   }
   .gps-status { display: flex; align-items: center; gap: 8px; font-size: 12px; opacity: 0.9; }
   .gps-dot {
-    width: 8px; height: 8px; border-radius: 50%; background: #5DCAA5;
+    width: 8px; height: 8px; border-radius: 50%; background: #56A0E8;
     animation: pulse 1.6s infinite;
   }
   .gps-dot.error { background: #F0997B; animation: none; }
@@ -190,7 +190,7 @@
     margin-bottom: 14px;
   }
   .photo-tile {
-    aspect-ratio: 1; background: #E8EDE5; border-radius: 10px;
+    aspect-ratio: 1; background: #E1ECF7; border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
     border: 0.5px solid rgba(0,0,0,0.08); position: relative; overflow: hidden;
   }
@@ -216,9 +216,9 @@
   .band-label { flex: 1; font-size: 13px; }
   .band-name { font-weight: 500; color: #1a1a1a; }
   .band-range { font-size: 11px; color: #888; margin-top: 2px; }
-  .band-bar { width: 70px; height: 6px; background: #E8EDE5; border-radius: 3px; overflow: hidden; }
-  .band-fill { height: 100%; background: #2C5F4F; border-radius: 3px; transition: width 0.3s; }
-  .band-amount { font-size: 13px; font-weight: 500; color: #2C5F4F; min-width: 64px; text-align: right; }
+  .band-bar { width: 70px; height: 6px; background: #E1ECF7; border-radius: 3px; overflow: hidden; }
+  .band-fill { height: 100%; background: #0E3D7A; border-radius: 3px; transition: width 0.3s; }
+  .band-amount { font-size: 13px; font-weight: 500; color: #0E3D7A; min-width: 64px; text-align: right; }
 
   /* Active band hint */
   .active-band {
@@ -228,24 +228,24 @@
   .ab-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .ab-title { font-size: 13px; font-weight: 500; }
   .badge {
-    display: inline-block; padding: 3px 10px; background: #E1F5EE;
-    color: #0F6E56; font-size: 11px; font-weight: 500; border-radius: 999px;
+    display: inline-block; padding: 3px 10px; background: #DCE9F8;
+    color: #0B5394; font-size: 11px; font-weight: 500; border-radius: 999px;
   }
-  .progress { height: 6px; background: #E8EDE5; border-radius: 3px; overflow: hidden; }
-  .progress-fill { height: 100%; background: #2C5F4F; }
+  .progress { height: 6px; background: #E1ECF7; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #0E3D7A; }
   .progress-meta { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-top: 6px; }
 
   /* Old monthly chart (kept for any legacy use) */
   .month-bar { display: flex; align-items: flex-end; gap: 5px; height: 110px; padding: 8px 0 4px; }
   .mb-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .mb-rect-wrap { flex: 1; display: flex; align-items: flex-end; width: 100%; }
-  .mb-rect { width: 100%; background: #2C5F4F; border-radius: 3px 3px 0 0; min-height: 2px; }
-  .mb-rect.empty { background: #E8EDE5; }
+  .mb-rect { width: 100%; background: #0E3D7A; border-radius: 3px 3px 0 0; min-height: 2px; }
+  .mb-rect.empty { background: #E1ECF7; }
   .mb-label { font-size: 10px; color: #888; }
 
   /* Summary hero card */
   .hero-card {
-    background: linear-gradient(135deg, #2C5F4F 0%, #234E40 100%);
+    background: linear-gradient(135deg, #0E3D7A 0%, #0A2E5C 100%);
     color: #fff; border-radius: 16px; padding: 18px 18px 16px;
     margin-bottom: 16px;
   }
@@ -290,39 +290,39 @@
   }
   .chart-col:hover .chart-col-tooltip { opacity: 1; }
   .chart-bar {
-    width: 100%; background: #B5C9BD; border-radius: 3px 3px 0 0;
+    width: 100%; background: #A8C5E8; border-radius: 3px 3px 0 0;
     min-height: 2px; transition: background 0.15s;
   }
-  .chart-bar.peak { background: #2C5F4F; }
-  .chart-bar.current { background: #5DCAA5; }
+  .chart-bar.peak { background: #0E3D7A; }
+  .chart-bar.current { background: #56A0E8; }
   .chart-label { font-size: 10px; color: #888; font-weight: 500; }
-  .chart-label.current { color: #2C5F4F; font-weight: 600; }
+  .chart-label.current { color: #0E3D7A; font-weight: 600; }
 
   /* Rate band cards */
   .band-card {
     background: #fff; border-radius: 14px; padding: 14px;
     margin-bottom: 8px; border: 0.5px solid rgba(0,0,0,0.08);
   }
-  .band-card.active { border: 1px solid #2C5F4F; background: #FAFCF9; }
+  .band-card.active { border: 1px solid #0E3D7A; background: #F8FBFF; }
   .band-card.inactive { opacity: 0.65; }
   .band-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 12px; }
   .band-card-name { font-size: 14px; font-weight: 500; color: #1a1a1a; display: flex; align-items: center; gap: 8px; }
   .band-card-range { font-size: 11.5px; color: #888; margin-top: 3px; }
   .band-card-amount {
     font-family: 'Instrument Serif', Georgia, serif;
-    font-size: 22px; line-height: 1; color: #2C5F4F; font-weight: 400;
+    font-size: 22px; line-height: 1; color: #0E3D7A; font-weight: 400;
     flex-shrink: 0;
   }
   .band-card.inactive .band-card-amount { color: #b0b0b0; }
-  .band-card-bar { height: 5px; background: #EFECE3; border-radius: 3px; overflow: hidden; }
-  .band-card-fill { height: 100%; background: #2C5F4F; border-radius: 3px; transition: width 0.4s ease; }
-  .band-card.inactive .band-card-fill { background: #D5D2C9; }
+  .band-card-bar { height: 5px; background: #E1ECF7; border-radius: 3px; overflow: hidden; }
+  .band-card-fill { height: 100%; background: #0E3D7A; border-radius: 3px; transition: width 0.4s ease; }
+  .band-card.inactive .band-card-fill { background: #C3D4E8; }
   .band-card-foot {
     display: flex; justify-content: space-between;
     font-size: 11px; color: #888; margin-top: 8px; font-weight: 500;
   }
   .badge-active {
-    background: #E1F5EE; color: #0F6E56;
+    background: #DCE9F8; color: #0B5394;
     font-size: 10px; font-weight: 600; padding: 2px 8px;
     border-radius: 999px; text-transform: uppercase; letter-spacing: 0.4px;
   }
@@ -664,7 +664,7 @@ const ICONS = {
   log: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
   chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>',
-  car: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="1.8"><path d="M5 17h14M5 17l-2-5 3-5h12l3 5-2 5M5 17v3M19 17v3"/><circle cx="8" cy="17" r="1.5" fill="#0F6E56"/><circle cx="16" cy="17" r="1.5" fill="#0F6E56"/></svg>',
+  car: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0B5394" stroke-width="1.8"><path d="M5 17h14M5 17l-2-5 3-5h12l3 5-2 5M5 17v3M19 17v3"/><circle cx="8" cy="17" r="1.5" fill="#0B5394"/><circle cx="16" cy="17" r="1.5" fill="#0B5394"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
   excel: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" fill="#1F7A4D"/><text x="12" y="16" font-size="9" font-weight="600" fill="white" text-anchor="middle" font-family="Arial">XLS</text></svg>',
@@ -716,7 +716,7 @@ function render() {
 function renderOnboard() {
   return `
   <div class="onboard">
-    <div style="font-size: 12px; color: #2C5F4F; font-weight: 600; letter-spacing: 1px; margin-bottom: 12px;">DUBLIN FUELS LTD</div>
+    <div style="font-size: 12px; color: #0E3D7A; font-weight: 600; letter-spacing: 1px; margin-bottom: 12px;">DUBLIN FUELS LTD</div>
     <h1>EV mileage<br>subsistence tracker</h1>
     <p class="lede">Log trips on the go, calculate Revenue civil-service rates automatically, and export to Excel for your accountant.</p>
 
@@ -884,7 +884,7 @@ function renderGpsActive(settings) {
 
     <div class="card">
       <div class="info-line"><span class="k">Distance so far</span><span class="v">${fmtKm(gpsState.distance)}</span></div>
-      <div class="info-line"><span class="k">Est. reimbursement</span><span class="v" style="color:#2C5F4F;">${fmtEur(estReimburse)}</span></div>
+      <div class="info-line"><span class="k">Est. reimbursement</span><span class="v" style="color:#0E3D7A;">${fmtEur(estReimburse)}</span></div>
     </div>
 
     <div class="btn-row">
@@ -1155,7 +1155,7 @@ function renderDetail(id, trips, settings) {
       ${trip.odoStart ? `<div class="info-line"><span class="k">Odometer start</span><span class="v">${trip.odoStart}</span></div>` : ''}
       ${trip.odoEnd ? `<div class="info-line"><span class="k">Odometer end</span><span class="v">${trip.odoEnd}</span></div>` : ''}
       <div class="info-line"><span class="k">Cumulative km</span><span class="v">${fmtKm(trip.cumulativeKm)}</span></div>
-      <div class="info-line"><span class="k">Reimbursement</span><span class="v" style="color:#2C5F4F; font-size: 15px;">${fmtEur(trip.reimbursement)}</span></div>
+      <div class="info-line"><span class="k">Reimbursement</span><span class="v" style="color:#0E3D7A; font-size: 15px;">${fmtEur(trip.reimbursement)}</span></div>
     </div>
 
     ${photosHtml}
@@ -1340,7 +1340,7 @@ function renderMore() {
   <div class="page">
     <div class="section-title">Export</div>
     <button class="list-row" onclick="navigate('export')">
-      <div class="list-icon" style="background:#E1F5EE;">${ICONS.excel}</div>
+      <div class="list-icon" style="background:#DCE9F8;">${ICONS.excel}</div>
       <div class="list-info">
         <div class="list-title">Export &amp; share</div>
         <div class="list-desc">Excel, PDF, or email to accountant</div>
@@ -1350,7 +1350,7 @@ function renderMore() {
 
     <div class="section-title">Settings</div>
     <button class="list-row" onclick="navigate('settings')">
-      <div class="list-icon" style="background:#F4F1E8;">${ICONS.settings}</div>
+      <div class="list-icon" style="background:#F2F6FB;">${ICONS.settings}</div>
       <div class="list-info">
         <div class="list-title">Director, vehicle &amp; rates</div>
         <div class="list-desc">Update Revenue rate bands &amp; details</div>
@@ -1409,7 +1409,7 @@ function renderExport(trips, settings) {
   <div class="page">
     <div class="section-title">Format</div>
     <button class="list-row" onclick="exportExcel()">
-      <div class="list-icon" style="background:#E1F5EE;">${ICONS.excel}</div>
+      <div class="list-icon" style="background:#DCE9F8;">${ICONS.excel}</div>
       <div class="list-info">
         <div class="list-title">Excel (.xlsx)</div>
         <div class="list-desc">Matches your existing template</div>
@@ -1448,12 +1448,12 @@ function renderExport(trips, settings) {
       <span class="chev">›</span>
     </button>
 
-    <div class="card" style="margin-top: 16px; background: #F4F1E8; border: none;">
+    <div class="card" style="margin-top: 16px; background: #F2F6FB; border: none;">
       <div class="info-line"><span class="k">Tax year</span><span class="v">${settings.taxYear}</span></div>
       <div class="info-line"><span class="k">Director</span><span class="v">${settings.director}</span></div>
       <div class="info-line"><span class="k">Trips included</span><span class="v">${trips.length}</span></div>
       <div class="info-line"><span class="k">Total km</span><span class="v">${fmtKm(stats.totalKm)}</span></div>
-      <div class="info-line"><span class="k">Total reimburse</span><span class="v" style="color:#2C5F4F;">${fmtEur(stats.totalReimburse)}</span></div>
+      <div class="info-line"><span class="k">Total reimburse</span><span class="v" style="color:#0E3D7A;">${fmtEur(stats.totalReimburse)}</span></div>
     </div>
   </div>`;
 }
@@ -1576,7 +1576,7 @@ async function buildExcelBlob(trips, settings) {
 
   ws1.mergeCells('A1:J1');
   ws1.getCell('A1').value = settings.company.toUpperCase();
-  ws1.getCell('A1').font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF2C5F4F' } };
+  ws1.getCell('A1').font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF0E3D7A' } };
   ws1.getCell('A1').alignment = { horizontal: 'center' };
 
   ws1.mergeCells('A2:J2');
@@ -1605,7 +1605,7 @@ async function buildExcelBlob(trips, settings) {
   headers.forEach((h, i) => {
     headerRow.getCell(i + 1).value = h;
     headerRow.getCell(i + 1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    headerRow.getCell(i + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2C5F4F' } };
+    headerRow.getCell(i + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0E3D7A' } };
     headerRow.getCell(i + 1).alignment = { horizontal: 'center', wrapText: true };
   });
 
@@ -1648,7 +1648,7 @@ async function buildExcelBlob(trips, settings) {
   const ws2 = wb.addWorksheet('Monthly Summary');
   ws2.mergeCells('A1:N1');
   ws2.getCell('A1').value = settings.company.toUpperCase();
-  ws2.getCell('A1').font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF2C5F4F' } };
+  ws2.getCell('A1').font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF0E3D7A' } };
   ws2.getCell('A1').alignment = { horizontal: 'center' };
 
   ws2.mergeCells('A2:N2');
@@ -1659,7 +1659,7 @@ async function buildExcelBlob(trips, settings) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   ws2.getRow(4).values = ['Metric', ...months, 'TOTAL'];
   ws2.getRow(4).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  ws2.getRow(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2C5F4F' } };
+  ws2.getRow(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0E3D7A' } };
 
   const monthlyKm = Array(12).fill(0);
   const monthlyEur = Array(12).fill(0);
@@ -1682,7 +1682,7 @@ async function buildExcelBlob(trips, settings) {
   ws3.columns = [{ width: 24 }, { width: 14 }, { width: 14 }, { width: 16 }, { width: 14 }];
   ws3.mergeCells('A1:E1');
   ws3.getCell('A1').value = settings.company.toUpperCase();
-  ws3.getCell('A1').font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF2C5F4F' } };
+  ws3.getCell('A1').font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF0E3D7A' } };
   ws3.getCell('A1').alignment = { horizontal: 'center' };
   ws3.mergeCells('A2:E2');
   ws3.getCell('A2').value = 'EV MILEAGE SUBSISTENCE TRACKER  |  Director driving Electric Vehicle';
@@ -1790,11 +1790,11 @@ function showFallbackLink(blob, filename) {
   if (existing) existing.remove();
   const wrap = document.createElement('div');
   wrap.id = 'fallback-link';
-  wrap.style.cssText = 'position:fixed;bottom:90px;left:16px;right:16px;background:#fff;border:1px solid #2C5F4F;border-radius:12px;padding:14px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,0.15);';
+  wrap.style.cssText = 'position:fixed;bottom:90px;left:16px;right:16px;background:#fff;border:1px solid #0E3D7A;border-radius:12px;padding:14px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,0.15);';
   wrap.innerHTML = `
     <div style="font-size:13px;font-weight:500;margin-bottom:8px;">Tap and hold the link below, then choose "Download link"</div>
-    <a href="${url}" download="${filename}" style="color:#2C5F4F;font-weight:500;word-break:break-all;">${filename}</a>
-    <button onclick="this.parentElement.remove()" style="margin-top:10px;background:#F4F1E8;border:none;padding:8px 14px;border-radius:8px;font-size:13px;">Close</button>
+    <a href="${url}" download="${filename}" style="color:#0E3D7A;font-weight:500;word-break:break-all;">${filename}</a>
+    <button onclick="this.parentElement.remove()" style="margin-top:10px;background:#F2F6FB;border:none;padding:8px 14px;border-radius:8px;font-size:13px;">Close</button>
   `;
   document.body.appendChild(wrap);
 }
@@ -1858,18 +1858,18 @@ function exportPDF() {
     <!DOCTYPE html><html><head><title>Mileage Report ${settings.taxYear}</title>
     <style>
       body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #1a1a1a; max-width: 900px; margin: 0 auto; }
-      h1 { color: #2C5F4F; font-size: 22px; margin: 0 0 4px; }
+      h1 { color: #0E3D7A; font-size: 22px; margin: 0 0 4px; }
       .sub { color: #666; font-size: 13px; margin-bottom: 24px; }
-      .stats { display: flex; gap: 20px; margin: 20px 0 30px; padding: 16px; background: #F4F1E8; border-radius: 8px; }
+      .stats { display: flex; gap: 20px; margin: 20px 0 30px; padding: 16px; background: #F2F6FB; border-radius: 8px; }
       .stat { flex: 1; }
       .stat-l { font-size: 11px; color: #666; text-transform: uppercase; }
-      .stat-v { font-size: 20px; font-weight: 600; color: #2C5F4F; }
+      .stat-v { font-size: 20px; font-weight: 600; color: #0E3D7A; }
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      th { background: #2C5F4F; color: #fff; padding: 8px; text-align: left; font-weight: 500; }
+      th { background: #0E3D7A; color: #fff; padding: 8px; text-align: left; font-weight: 500; }
       td { padding: 7px 8px; border-bottom: 0.5px solid #ddd; }
-      tr:nth-child(even) td { background: #FAFAF6; }
+      tr:nth-child(even) td { background: #F8FBFF; }
       .num { text-align: right; }
-      .total-row td { font-weight: 600; background: #E1F5EE !important; border-top: 2px solid #2C5F4F; }
+      .total-row td { font-weight: 600; background: #DCE9F8 !important; border-top: 2px solid #0E3D7A; }
       @media print { body { padding: 20px; } }
     </style>
     </head><body>
