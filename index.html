@@ -1541,12 +1541,27 @@ function resetRates() {
 async function exportExcel() {
   const trips = loadTrips();
   const settings = loadSettings();
-  const stats = computeYtdStats(trips, settings);
-
+  if (trips.length === 0) {
+    toast('No trips to export yet');
+    return;
+  }
   if (typeof ExcelJS === 'undefined') {
     toast('Excel library failed to load — check internet');
     return;
   }
+  try {
+    const blob = await buildExcelBlob(trips, settings);
+    const filename = `EV_Subsistence_${settings.director.replace(/\s+/g,'_')}_${settings.taxYear}_${todayIso()}.xlsx`;
+    await shareOrDownload(blob, filename, `Mileage ${settings.taxYear} — ${settings.director}`);
+  } catch (err) {
+    console.error('Excel build error:', err);
+    toast('Export failed: ' + (err.message || 'unknown error'));
+  }
+}
+
+async function buildExcelBlob(trips, settings) {
+  if (typeof ExcelJS === 'undefined') throw new Error('Excel library not loaded');
+  const stats = computeYtdStats(trips, settings);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = settings.company;
@@ -1720,42 +1735,114 @@ async function exportExcel() {
 
   // Generate file
   const buf = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const filename = `EV_Subsistence_${settings.director.replace(/\s+/g,'_')}_${settings.taxYear}_${todayIso()}.xlsx`;
-  await shareOrDownload(blob, filename, `Mileage ${settings.taxYear} — ${settings.director}`);
+  return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
 // Tries the native share sheet first (which includes "Save to Drive" on Android),
 // falls back to a regular download if sharing isn't available or is cancelled.
 async function shareOrDownload(blob, filename, title) {
+  // Try the native share sheet first (Android: includes "Save to Drive")
   try {
-    const file = new File([blob], filename, { type: blob.type });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title, text: title });
-      toast('Shared');
-      return;
+    if (navigator.canShare && navigator.share) {
+      const file = new File([blob], filename, { type: blob.type });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title, text: title });
+        toast('Shared');
+        return;
+      }
     }
   } catch (err) {
-    // User cancelled the share sheet — that's fine, just stop
-    if (err && err.name === 'AbortError') return;
-    // Otherwise fall through to download
+    if (err && err.name === 'AbortError') return; // user cancelled
+    console.warn('Share failed, falling back to download:', err);
+    // fall through to download
   }
-  downloadBlob(blob, filename);
-  toast('File ready — check your downloads');
+
+  // Fallback: trigger a download
+  try {
+    const ok = downloadBlob(blob, filename);
+    if (ok) {
+      toast('File ready — check your downloads');
+    } else {
+      throw new Error('Download trigger failed');
+    }
+  } catch (err) {
+    console.error('Download failed:', err);
+    // Last-resort: open the blob in a new tab so the user can save manually
+    try {
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank');
+      if (win) {
+        toast('Tap menu → Download to save');
+      } else {
+        toast('Could not save — try long-pressing this link');
+        // Render a clickable link as ultimate fallback
+        showFallbackLink(blob, filename);
+      }
+    } catch (e2) {
+      toast('Save failed: ' + (err.message || 'unknown error'));
+    }
+  }
+}
+
+function showFallbackLink(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const existing = document.getElementById('fallback-link');
+  if (existing) existing.remove();
+  const wrap = document.createElement('div');
+  wrap.id = 'fallback-link';
+  wrap.style.cssText = 'position:fixed;bottom:90px;left:16px;right:16px;background:#fff;border:1px solid #2C5F4F;border-radius:12px;padding:14px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,0.15);';
+  wrap.innerHTML = `
+    <div style="font-size:13px;font-weight:500;margin-bottom:8px;">Tap and hold the link below, then choose "Download link"</div>
+    <a href="${url}" download="${filename}" style="color:#2C5F4F;font-weight:500;word-break:break-all;">${filename}</a>
+    <button onclick="this.parentElement.remove()" style="margin-top:10px;background:#F4F1E8;border:none;padding:8px 14px;border-radius:8px;font-size:13px;">Close</button>
+  `;
+  document.body.appendChild(wrap);
 }
 
 // Generates the Excel file and triggers Android's share sheet so the user
-// can pick "Save to Drive" (or any other share target). Falls back to a
-// regular download with a helpful tip if Web Share isn't available.
+// can pick "Save to Drive" (or any other share target).
 async function exportToDrive() {
-  if (!navigator.canShare || !navigator.share) {
-    toast('Share not supported — file will download instead');
-    setTimeout(exportExcel, 800);
+  const trips = loadTrips();
+  const settings = loadSettings();
+
+  if (trips.length === 0) {
+    toast('No trips to export yet');
     return;
   }
-  // Just delegate to exportExcel — it already prefers shareOrDownload,
-  // which on Android shows the share sheet that includes Google Drive.
-  await exportExcel();
+
+  toast('Building Excel file…');
+
+  try {
+    const blob = await buildExcelBlob(trips, settings);
+    const filename = `EV_Subsistence_${settings.director.replace(/\s+/g,'_')}_${settings.taxYear}_${todayIso()}.xlsx`;
+    const title = `Mileage ${settings.taxYear} — ${settings.director}`;
+
+    // Prefer the share sheet so user can pick Drive
+    if (navigator.canShare && navigator.share) {
+      try {
+        const file = new File([blob], filename, { type: blob.type });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title, text: title });
+          toast('Opened share sheet');
+          return;
+        }
+      } catch (err) {
+        if (err && err.name === 'AbortError') return; // user cancelled
+        console.warn('Share failed:', err);
+      }
+    }
+
+    // Fallback: download the file
+    const ok = downloadBlob(blob, filename);
+    if (ok) {
+      toast('Downloaded — open Drive and upload it');
+    } else {
+      showFallbackLink(blob, filename);
+    }
+  } catch (err) {
+    console.error('Excel export error:', err);
+    toast('Export failed: ' + (err.message || 'unknown error'));
+  }
 }
 
 function exportPDF() {
@@ -1882,14 +1969,22 @@ function clearAllData() {
 }
 
 function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    a.target = '_self';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return true;
+  } catch (err) {
+    console.error('downloadBlob error:', err);
+    return false;
+  }
 }
 
 /* ============================================================
