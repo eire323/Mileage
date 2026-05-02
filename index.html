@@ -171,6 +171,14 @@
     padding: 14px; font-size: 13px; color: #888; text-align: center;
   }
 
+  .route-hint {
+    font-size: 11.5px; margin-top: 6px; padding: 6px 10px;
+    border-radius: 8px; line-height: 1.4;
+  }
+  .route-hint[data-kind="info"] { background: #F2F6FB; color: #0E3D7A; }
+  .route-hint[data-kind="success"] { background: #DCE9F8; color: #0B5394; font-weight: 500; }
+  .route-hint[data-kind="warn"] { background: #FCEBEB; color: #791F1F; }
+
   .preview-card { background: #F2F6FB; border-radius: 12px; padding: 14px; margin: 14px 0; }
   .preview-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
   .preview-row .k { color: #6b6b6b; }
@@ -974,7 +982,7 @@ function renderGpsActive(settings) {
 
     <div class="btn-row">
       <button class="btn-secondary" onclick="pauseGPS()">${gpsState.paused ? 'Resume' : 'Pause'}</button>
-      <button class="btn-primary" onclick="finishGPS()" ${gpsState.distance < 0.05 ? 'disabled' : ''}>Stop &amp; save</button>
+      <button id="gps-stop-btn" class="btn-primary" onclick="finishGPS()">Stop &amp; save</button>
     </div>
 
     ${gpsState.status === 'error' ? `<div class="card" style="background: #FCEBEB; border: 0.5px solid #F0997B; color: #791F1F; font-size: 12px; margin-top: 12px;">${gpsState.errorMsg}</div>` : ''}
@@ -1018,13 +1026,17 @@ function loadRecentLocations() {
   } catch { return []; }
 }
 
-function saveRecentLocation(name) {
+function saveRecentLocation(name, coords) {
   if (!name || !name.trim()) return;
   const trimmed = name.trim();
   let recents = loadRecentLocations();
-  // Remove if already present (move to top), then prepend
   recents = recents.filter(r => r.name.toLowerCase() !== trimmed.toLowerCase());
-  recents.unshift({ name: trimmed, ts: Date.now() });
+  const entry = { name: trimmed, ts: Date.now() };
+  if (coords && typeof coords.lat === 'number' && typeof coords.lon === 'number') {
+    entry.lat = coords.lat;
+    entry.lon = coords.lon;
+  }
+  recents.unshift(entry);
   recents = recents.slice(0, MAX_RECENTS);
   localStorage.setItem(RECENT_LOCATIONS_KEY, JSON.stringify(recents));
 }
@@ -1097,12 +1109,14 @@ function showRecentLocations(key) {
   if (recents.length === 0) { sug.style.display = 'none'; return; }
   sug.innerHTML = `
     <div class="loc-sug-header">Recent</div>
-    ${recents.map(r => `
-      <button type="button" class="loc-sug-item" onmousedown="event.preventDefault();" onclick="pickLocation('${key}', ${JSON.stringify(r.name).replace(/"/g, '&quot;')})">
+    ${recents.map(r => {
+      const safe = JSON.stringify({ name: r.name, lat: r.lat, lon: r.lon }).replace(/"/g, '&quot;');
+      return `
+      <button type="button" class="loc-sug-item" onmousedown="event.preventDefault();" onclick='pickLocation("${key}", ${safe})'>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.8" style="flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
         <span>${escapeHtml(r.name)}</span>
-      </button>
-    `).join('')}
+      </button>`;
+    }).join('')}
   `;
   sug.style.display = 'block';
 }
@@ -1134,9 +1148,11 @@ async function searchLocations(key, query) {
 
     sug.innerHTML = results.map(r => {
       const display = formatNominatimResult(r);
-      const safe = JSON.stringify(display).replace(/"/g, '&quot;');
+      const lat = parseFloat(r.lat);
+      const lon = parseFloat(r.lon);
+      const safe = JSON.stringify({ name: display, lat, lon }).replace(/"/g, '&quot;');
       return `
-        <button type="button" class="loc-sug-item" onmousedown="event.preventDefault();" onclick="pickLocation('${key}', ${safe})">
+        <button type="button" class="loc-sug-item" onmousedown="event.preventDefault();" onclick='pickLocation("${key}", ${safe})'>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0E3D7A" stroke-width="1.8" style="flex-shrink:0;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           <span>${escapeHtml(display)}</span>
         </button>`;
@@ -1166,11 +1182,111 @@ function formatNominatimResult(r) {
   return parts.join(', ');
 }
 
-function pickLocation(key, name) {
+function pickLocation(key, payload) {
+  // payload can be a string (old recents) or {name, lat, lon} (new picks)
+  const data = (typeof payload === 'string') ? { name: payload } : payload;
   const input = document.getElementById('tf-' + key);
-  if (input) input.value = name;
-  updateField(key, name);
+  if (input) input.value = data.name;
+  updateField(key, data.name);
+  // Store coordinates on editingTrip for routing
+  if (!editingTrip._coords) editingTrip._coords = {};
+  if (typeof data.lat === 'number' && typeof data.lon === 'number') {
+    editingTrip._coords[key] = { lat: data.lat, lon: data.lon };
+  } else {
+    delete editingTrip._coords[key];
+  }
   hideSuggestions(key);
+  // Trigger auto-distance if both endpoints are set
+  maybeAutoCalcDistance();
+}
+
+// If both From and To have coordinates, fetch the road distance from OSRM
+// and update the distance field. The user can override by editing manually.
+let _routeRequestId = 0;
+async function maybeAutoCalcDistance() {
+  const c = editingTrip && editingTrip._coords;
+  if (!c || !c.from || !c.to) return;
+
+  // Don't overwrite a manually-edited distance unless we set it ourselves
+  if (editingTrip._manualDistance) return;
+
+  const distInput = document.getElementById('tf-distance');
+  const reqId = ++_routeRequestId;
+
+  // Show "calculating" hint
+  showRouteHint('Calculating road distance…', 'info');
+
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${c.from.lon},${c.from.lat};${c.to.lon},${c.to.lat}?overview=false`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Routing service unavailable');
+    const data = await res.json();
+    if (reqId !== _routeRequestId) return; // stale request, ignore
+
+    if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
+      throw new Error('No route found');
+    }
+
+    const meters = data.routes[0].distance;
+    const km = meters / 1000;
+    const rounded = Math.round(km * 10) / 10;
+
+    // Update field and editingTrip
+    if (distInput) distInput.value = rounded;
+    editingTrip.distance = rounded;
+    editingTrip._autoDistance = true;
+    refreshTripPreview();
+
+    showRouteHint(`Auto-calculated: ${rounded} km road distance`, 'success');
+  } catch (err) {
+    if (reqId !== _routeRequestId) return;
+    console.warn('Auto-distance failed:', err);
+    // Fallback: straight-line distance as a last resort, with a clear warning
+    const km = haversine(c.from.lat, c.from.lon, c.to.lat, c.to.lon);
+    const rounded = Math.round(km * 10) / 10;
+    showRouteHint(`Routing unavailable. Straight-line distance: ${rounded} km — verify before saving`, 'warn');
+  }
+}
+
+function showRouteHint(text, kind) {
+  let hint = document.getElementById('route-hint');
+  if (!hint) {
+    const distField = document.getElementById('tf-distance');
+    if (!distField) return;
+    hint = document.createElement('div');
+    hint.id = 'route-hint';
+    hint.className = 'route-hint';
+    distField.parentElement.appendChild(hint);
+  }
+  hint.textContent = text;
+  hint.dataset.kind = kind || 'info';
+}
+
+function markManualDistance(value) {
+  updateField('distance', parseFloat(value) || 0);
+  if (editingTrip) {
+    editingTrip._manualDistance = true;
+    editingTrip._autoDistance = false;
+    const hint = document.getElementById('route-hint');
+    if (hint) hint.remove();
+  }
+}
+
+function refreshTripPreview() {
+  const stats = computeYtdStats(loadTrips().filter(t => !editingTrip.isEdit || t.id !== editingTrip.id), loadSettings());
+  const dist = parseFloat(editingTrip.distance) || 0;
+  const estReimburse = calcReimbursement(dist, stats.totalKm, loadSettings());
+  const preview = document.querySelector('.preview-card');
+  if (preview) {
+    const settings = loadSettings();
+    const activeBand = getBandForKm(stats.totalKm + 0.1, settings);
+    preview.innerHTML = `
+      <div class="preview-row"><span class="k">Rate (${activeBand.name})</span><span class="v">€${activeBand.rate.toFixed(4)} / km</span></div>
+      <div class="preview-row"><span class="k">Distance</span><span class="v">${fmtKm(dist)}</span></div>
+      <div class="preview-row total"><span class="k">Reimbursement</span><span class="v">${fmtEur(estReimburse)}</span></div>`;
+  }
+  const saveBtn = document.querySelector('.btn-primary');
+  if (saveBtn) saveBtn.disabled = dist <= 0;
 }
 
 async function useCurrentLocation(key) {
@@ -1195,10 +1311,10 @@ async function useCurrentLocation(key) {
         const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
         const data = await res.json();
         const name = formatNominatimResult(data) || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-        pickLocation(key, name);
+        pickLocation(key, { name, lat: latitude, lon: longitude });
       } catch (err) {
         const fallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-        pickLocation(key, fallback);
+        pickLocation(key, { name: fallback, lat: latitude, lon: longitude });
       }
     },
     (err) => {
@@ -1264,7 +1380,7 @@ function renderTripForm(title, backRoute, backParams = {}) {
       </div>
       <div class="field">
         <label>Distance (km)</label>
-        <input id="tf-distance" type="number" step="0.1" min="0" value="${dist}" oninput="updateField('distance', parseFloat(this.value) || 0)">
+        <input id="tf-distance" type="number" step="0.1" min="0" value="${dist}" oninput="markManualDistance(this.value)">
       </div>
     </div>
 
@@ -1377,8 +1493,8 @@ function saveCurrentTrip(backRoute) {
   saveTrips(sorted);
 
   // Remember locations for autocomplete next time
-  saveRecentLocation(editingTrip.from);
-  saveRecentLocation(editingTrip.to);
+  saveRecentLocation(editingTrip.from, editingTrip._coords && editingTrip._coords.from);
+  saveRecentLocation(editingTrip.to, editingTrip._coords && editingTrip._coords.to);
 
   editingTrip = null;
   toast(editingTrip?.isEdit ? 'Trip updated' : 'Trip saved');
