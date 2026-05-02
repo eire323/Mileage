@@ -565,6 +565,15 @@ function startGPS() {
     render();
     return;
   }
+
+  // Check secure context — geolocation needs HTTPS (or localhost)
+  if (!window.isSecureContext) {
+    gpsState.status = 'error';
+    gpsState.errorMsg = 'GPS requires HTTPS. Open this page via your hosted URL, not as a downloaded file.';
+    render();
+    return;
+  }
+
   gpsState.tracking = true;
   gpsState.paused = false;
   gpsState.distance = 0;
@@ -573,26 +582,46 @@ function startGPS() {
   gpsState.positions = [];
   gpsState.status = 'acquiring';
   gpsState.errorMsg = '';
+  gpsState.fixCount = 0;
+  gpsState.lastAccuracy = null;
+  gpsState.rejectedCount = 0;
   render();
 
   gpsState.watchId = navigator.geolocation.watchPosition(
     (pos) => {
       if (gpsState.paused) return;
       const { latitude, longitude, accuracy } = pos.coords;
-      // Reject low-accuracy fixes
-      if (accuracy > 50) return;
-      const newPos = { lat: latitude, lon: longitude, t: pos.timestamp };
+      gpsState.fixCount += 1;
+      gpsState.lastAccuracy = accuracy;
+
+      // Reject only very poor fixes (was 50m, too strict — start at 100m, relax over time)
+      const accuracyThreshold = gpsState.fixCount < 5 ? 200 : 100;
+      if (accuracy > accuracyThreshold) {
+        gpsState.rejectedCount += 1;
+        gpsState.status = 'acquiring';
+        renderGpsLive();
+        return;
+      }
+
+      const newPos = { lat: latitude, lon: longitude, t: pos.timestamp, acc: accuracy };
+
       if (gpsState.lastPos) {
         const d = haversine(gpsState.lastPos.lat, gpsState.lastPos.lon, latitude, longitude);
-        // Reject jumps > 200m in <1s (GPS noise)
-        const dt = (newPos.t - gpsState.lastPos.t) / 1000;
-        if (dt > 0 && (d / dt) < 0.05) {
-          // Below 50 m/s = ~180 km/h, sanity passed
-          if (d > 0.005) { // ignore <5m drift
-            gpsState.distance += d;
-          }
+        const dt = (newPos.t - gpsState.lastPos.t) / 1000; // seconds
+
+        // Sanity: reject impossibly fast jumps (>200 km/h between fixes = GPS spike)
+        const speedKmH = dt > 0 ? (d / dt) * 3600 : 0;
+        const isSane = dt > 0 && speedKmH < 200;
+
+        // Drift filter: ignore tiny movements smaller than the GPS accuracy
+        // (otherwise standing still adds km from GPS noise)
+        const minMove = Math.max(0.005, accuracy / 1000); // at least 5m, or accuracy radius
+
+        if (isSane && d > minMove) {
+          gpsState.distance += d;
         }
       }
+
       gpsState.lastPos = newPos;
       gpsState.positions.push(newPos);
       gpsState.status = 'tracking';
@@ -600,7 +629,12 @@ function startGPS() {
     },
     (err) => {
       gpsState.status = 'error';
-      gpsState.errorMsg = err.code === 1 ? 'Location permission denied' : 'GPS error: ' + err.message;
+      const msgs = {
+        1: 'Location permission denied. Allow location in your browser settings and try again.',
+        2: 'Location unavailable. Move outside or near a window for a better GPS signal.',
+        3: 'GPS timed out. Try again outdoors.'
+      };
+      gpsState.errorMsg = msgs[err.code] || ('GPS error: ' + (err.message || 'unknown'));
       render();
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
@@ -623,10 +657,22 @@ function pauseGPS() {
 function renderGpsLive() {
   const dist = document.getElementById('gps-live-distance');
   const time = document.getElementById('gps-live-time');
-  if (dist) dist.textContent = gpsState.distance.toFixed(1);
+  const status = document.getElementById('gps-live-status');
+  const diag = document.getElementById('gps-live-diag');
+  if (dist) dist.textContent = gpsState.distance.toFixed(2);
   if (time) {
     const min = Math.floor((Date.now() - gpsState.startTime) / 60000);
     time.textContent = min + ' min';
+  }
+  if (status) {
+    let text = 'Acquiring GPS…';
+    if (gpsState.status === 'tracking') text = gpsState.paused ? 'Paused' : 'Tracking · GPS lock';
+    else if (gpsState.status === 'error') text = gpsState.errorMsg;
+    status.textContent = text;
+  }
+  if (diag) {
+    const acc = gpsState.lastAccuracy ? Math.round(gpsState.lastAccuracy) + 'm' : '—';
+    diag.textContent = `Fixes: ${gpsState.fixCount || 0} · Accuracy: ${acc}${gpsState.rejectedCount ? ' · Rejected: ' + gpsState.rejectedCount : ''}`;
   }
 }
 
@@ -874,12 +920,13 @@ function renderGpsActive(settings) {
   </div>
   <div class="page">
     <div class="gps-card">
-      <div class="gps-status"><span class="gps-dot ${dotClass}"></span><span>${statusText}</span></div>
-      <div><span class="gps-distance" id="gps-live-distance">${gpsState.distance.toFixed(1)}</span><span class="gps-unit">km</span></div>
+      <div class="gps-status"><span class="gps-dot ${dotClass}" id="gps-live-dot"></span><span id="gps-live-status">${statusText}</span></div>
+      <div><span class="gps-distance" id="gps-live-distance">${gpsState.distance.toFixed(2)}</span><span class="gps-unit">km</span></div>
       <div class="gps-meta">
         <span>Time · <span id="gps-live-time">${min} min</span></span>
         <span>${activeBand.name} · €${activeBand.rate.toFixed(4)}/km</span>
       </div>
+      <div class="gps-diag" id="gps-live-diag" style="font-size: 11px; opacity: 0.7; margin-top: 8px;">Fixes: ${gpsState.fixCount || 0} · Accuracy: ${gpsState.lastAccuracy ? Math.round(gpsState.lastAccuracy) + 'm' : '—'}</div>
     </div>
 
     <div class="card">
@@ -889,10 +936,12 @@ function renderGpsActive(settings) {
 
     <div class="btn-row">
       <button class="btn-secondary" onclick="pauseGPS()">${gpsState.paused ? 'Resume' : 'Pause'}</button>
-      <button class="btn-primary" onclick="finishGPS()" ${gpsState.distance < 0.1 ? 'disabled' : ''}>Stop &amp; save</button>
+      <button class="btn-primary" onclick="finishGPS()" ${gpsState.distance < 0.05 ? 'disabled' : ''}>Stop &amp; save</button>
     </div>
 
-    <p style="font-size: 11px; color: #888; text-align: center; margin-top: 18px;">Keep the app open while driving. iOS may pause GPS if you switch apps.</p>
+    ${gpsState.status === 'error' ? `<div class="card" style="background: #FCEBEB; border: 0.5px solid #F0997B; color: #791F1F; font-size: 12px; margin-top: 12px;">${gpsState.errorMsg}</div>` : ''}
+
+    <p style="font-size: 11px; color: #888; text-align: center; margin-top: 18px;">Keep the app open and the screen on while driving. GPS works best outdoors with a clear sky view.</p>
   </div>`;
 }
 
