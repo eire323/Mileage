@@ -1456,43 +1456,39 @@ function renderExport(trips, settings) {
     <div><h1>Export &amp; share</h1><div class="sub">${trips.length} trips · ${fmtKm(stats.totalKm)}</div></div>
   </div>
   <div class="page">
-    <div class="section-title">Format</div>
-    <button class="list-row" onclick="exportExcel()">
+    <div id="export-status" class="card" style="background:#F2F6FB; border:none; font-size:13px; color:#0E3D7A; ${trips.length === 0 ? '' : 'display:none;'}">
+      ${trips.length === 0 ? 'No trips to export yet — log a trip first.' : ''}
+    </div>
+
+    <!-- Generated file panel (hidden until user generates) -->
+    <div id="file-panel" style="display:none;"></div>
+
+    <div class="section-title">Generate file</div>
+    <button class="list-row" onclick="generateExcel()" ${trips.length === 0 ? 'disabled style="opacity:0.5;"' : ''}>
       <div class="list-icon" style="background:#DCE9F8;">${ICONS.excel}</div>
       <div class="list-info">
         <div class="list-title">Excel (.xlsx)</div>
-        <div class="list-desc">Matches your existing template</div>
+        <div class="list-desc">Matches your template — opens, saves, or shares</div>
       </div>
       <span class="chev">›</span>
     </button>
 
-    <button class="list-row" onclick="exportPDF()">
+    <button class="list-row" onclick="exportPDF()" ${trips.length === 0 ? 'disabled style="opacity:0.5;"' : ''}>
       <div class="list-icon" style="background:#FCEBEB;">${ICONS.pdf}</div>
       <div class="list-info">
         <div class="list-title">PDF report</div>
-        <div class="list-desc">Print-ready summary (uses browser print)</div>
+        <div class="list-desc">Opens print preview in new tab</div>
       </div>
       <span class="chev">›</span>
     </button>
 
-    <button class="list-row" onclick="exportToDrive()">
-      <div class="list-icon" style="background:#FAEEDA;">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M8 2l-6 11 4 7h12l4-7-6-11z" fill="#FBBC04"/><path d="M8 2l8 14h6L14 2z" fill="#34A853" opacity="0.85"/><path d="M2 13l4 7 8-14H8z" fill="#4285F4" opacity="0.85"/></svg>
-      </div>
-      <div class="list-info">
-        <div class="list-title">Save to Google Drive</div>
-        <div class="list-desc">Opens share sheet — pick Drive</div>
-      </div>
-      <span class="chev">›</span>
-    </button>
-
-    <button class="list-row" onclick="emailExport()">
+    <button class="list-row" onclick="emailExport()" ${trips.length === 0 ? 'disabled style="opacity:0.5;"' : ''}>
       <div class="list-icon" style="background:#E6F1FB;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
       </div>
       <div class="list-info">
-        <div class="list-title">Email to accountant</div>
-        <div class="list-desc">Opens your email app with summary</div>
+        <div class="list-title">Email summary</div>
+        <div class="list-desc">Opens your email app with text summary</div>
       </div>
       <span class="chev">›</span>
     </button>
@@ -1504,7 +1500,214 @@ function renderExport(trips, settings) {
       <div class="info-line"><span class="k">Total km</span><span class="v">${fmtKm(stats.totalKm)}</span></div>
       <div class="info-line"><span class="k">Total reimburse</span><span class="v" style="color:#0E3D7A;">${fmtEur(stats.totalReimburse)}</span></div>
     </div>
+
+    <div class="section-title" style="margin-top: 24px;">Troubleshoot</div>
+    <button class="list-row" onclick="runExportDiagnostics()">
+      <div class="list-icon" style="background:#F2F6FB;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0E3D7A" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+      </div>
+      <div class="list-info">
+        <div class="list-title">Run export diagnostic</div>
+        <div class="list-desc">If exports aren't working, tap to see why</div>
+      </div>
+      <span class="chev">›</span>
+    </button>
+    <div id="diag-output" style="display:none;"></div>
   </div>`;
+}
+
+// Build the Excel file first, THEN render real <a> tags the user taps directly.
+// This avoids programmatic clicks (which mobile Chrome sometimes blocks) and
+// keeps every action inside a real user gesture.
+async function generateExcel() {
+  const status = document.getElementById('export-status');
+  const panel = document.getElementById('file-panel');
+  if (!status || !panel) return;
+
+  status.style.display = 'block';
+  status.style.background = '#F2F6FB';
+  status.style.color = '#0E3D7A';
+  status.textContent = 'Building Excel file…';
+  panel.style.display = 'none';
+  panel.innerHTML = '';
+
+  try {
+    // Step 1: Check library
+    if (typeof ExcelJS === 'undefined') {
+      throw new Error('Excel library not loaded — check your internet connection and reload the page');
+    }
+
+    // Step 2: Build workbook
+    const trips = loadTrips();
+    const settings = loadSettings();
+    const blob = await buildExcelBlob(trips, settings);
+
+    // Step 3: Validate blob
+    if (!blob || blob.size === 0) {
+      throw new Error('Generated file is empty');
+    }
+
+    // Step 4: Create object URL
+    const filename = `EV_Subsistence_${settings.director.replace(/\s+/g,'_')}_${settings.taxYear}_${todayIso()}.xlsx`;
+    const url = URL.createObjectURL(blob);
+
+    // Step 5: Show the action panel with real, tappable elements
+    status.style.display = 'none';
+    panel.style.display = 'block';
+    const sizeKb = (blob.size / 1024).toFixed(1);
+    panel.innerHTML = renderFilePanel(url, filename, sizeKb, blob);
+
+    // Save references so share button can reach the blob
+    window._lastExportBlob = blob;
+    window._lastExportFilename = filename;
+    window._lastExportUrl = url;
+
+  } catch (err) {
+    console.error('generateExcel error:', err);
+    status.style.background = '#FCEBEB';
+    status.style.color = '#791F1F';
+    status.textContent = 'Failed: ' + (err.message || 'unknown error');
+  }
+}
+
+function renderFilePanel(url, filename, sizeKb, blob) {
+  const canShare = !!(navigator.canShare && navigator.share);
+  return `
+    <div class="card" style="border: 1px solid #0E3D7A; background: #F8FBFF; padding: 16px;">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom: 12px;">
+        <div style="width:40px; height:40px; border-radius:10px; background:#DCE9F8; display:flex; align-items:center; justify-content:center;">
+          <svg width="20" height="20" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" fill="#1F7A4D"/><text x="12" y="16" font-size="9" font-weight="600" fill="white" text-anchor="middle" font-family="Arial">XLS</text></svg>
+        </div>
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${filename}</div>
+          <div style="font-size:11px; color:#888; margin-top:2px;">${sizeKb} KB · ready</div>
+        </div>
+      </div>
+
+      <a href="${url}" download="${filename}"
+         style="display:block; background:#0E3D7A; color:#fff; text-align:center; text-decoration:none; padding:14px; border-radius:12px; font-size:15px; font-weight:500; margin-bottom:8px;">
+        Download file
+      </a>
+
+      ${canShare ? `
+      <button onclick="shareLastExport()"
+         style="display:block; width:100%; background:#fff; color:#0E3D7A; border:1px solid #0E3D7A; text-align:center; padding:13px; border-radius:12px; font-size:15px; font-weight:500; margin-bottom:8px; cursor:pointer;">
+        Share to Drive, email, etc.
+      </button>` : ''}
+
+      <a href="${url}" target="_blank" rel="noopener"
+         style="display:block; background:#F2F6FB; color:#0E3D7A; text-align:center; text-decoration:none; padding:11px; border-radius:12px; font-size:13px; font-weight:500;">
+        Open in new tab
+      </a>
+
+      <p style="font-size:11px; color:#888; margin: 12px 0 0; text-align:center;">
+        If "Download" doesn't work, long-press it and pick "Download link"
+      </p>
+    </div>
+  `;
+}
+
+async function shareLastExport() {
+  const blob = window._lastExportBlob;
+  const filename = window._lastExportFilename;
+  if (!blob || !filename) {
+    toast('No file to share — generate first');
+    return;
+  }
+  try {
+    const file = new File([blob], filename, { type: blob.type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename, text: filename });
+    } else {
+      toast('Sharing not supported on this browser');
+    }
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;
+    console.error('Share error:', err);
+    toast('Share failed: ' + (err.message || 'unknown'));
+  }
+}
+
+// Diagnostic — runs every step independently and reports results inline.
+async function runExportDiagnostics() {
+  const out = document.getElementById('diag-output');
+  if (!out) return;
+  out.style.display = 'block';
+  out.innerHTML = '<div class="card" style="font-size:12px; font-family: monospace;"><div>Running diagnostics…</div></div>';
+
+  const results = [];
+  const log = (label, ok, detail = '') => {
+    results.push({ label, ok, detail });
+  };
+
+  // 1. Page context
+  log('Page protocol', location.protocol === 'https:' || location.hostname === 'localhost',
+      `URL starts with ${location.protocol}//${location.hostname}`);
+
+  // 2. ExcelJS loaded
+  log('ExcelJS library', typeof ExcelJS !== 'undefined',
+      typeof ExcelJS !== 'undefined' ? 'loaded' : 'NOT LOADED — check internet');
+
+  // 3. Blob support
+  log('Blob support', typeof Blob !== 'undefined', '');
+
+  // 4. URL.createObjectURL support
+  log('createObjectURL support', typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function', '');
+
+  // 5. Anchor download attribute
+  const a = document.createElement('a');
+  log('Download attribute', 'download' in a, '');
+
+  // 6. Web Share API
+  log('Web Share API', !!(navigator.canShare && navigator.share),
+      navigator.share ? 'available' : 'not available');
+
+  // 7. Try building a tiny test file
+  let buildOk = false, buildErr = '';
+  try {
+    if (typeof ExcelJS !== 'undefined') {
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Test');
+      ws.getCell('A1').value = 'test';
+      const buf = await wb.xlsx.writeBuffer();
+      const testBlob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      buildOk = testBlob.size > 0;
+      buildErr = `${testBlob.size} bytes`;
+    } else {
+      buildErr = 'skipped (ExcelJS not loaded)';
+    }
+  } catch (e) {
+    buildErr = e.message;
+  }
+  log('Build test workbook', buildOk, buildErr);
+
+  // 8. localStorage available
+  let lsOk = false;
+  try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); lsOk = true; } catch (e) {}
+  log('localStorage', lsOk, '');
+
+  // 9. Trip count
+  const trips = loadTrips();
+  log('Trip data', true, `${trips.length} trips stored`);
+
+  // Render results
+  out.innerHTML = `
+    <div class="card" style="font-size:12px; font-family: monospace; line-height: 1.7;">
+      <div style="font-weight:600; margin-bottom:8px; font-family: 'Inter', sans-serif;">Diagnostic results</div>
+      ${results.map(r => `
+        <div style="display:flex; gap:8px; padding:4px 0; border-bottom: 0.5px solid #eee;">
+          <span style="color: ${r.ok ? '#0B5394' : '#C8453B'}; font-weight: 600; flex-shrink: 0;">${r.ok ? '✓' : '✗'}</span>
+          <span style="flex: 1;">${r.label}</span>
+          <span style="color: #888; font-size: 11px;">${r.detail}</span>
+        </div>
+      `).join('')}
+      <div style="margin-top:12px; font-family: 'Inter', sans-serif; font-size:13px; color: #6b6b6b;">
+        ${results.every(r => r.ok)
+          ? 'Everything checks out — try Generate file again.'
+          : 'Items marked ✗ are blocking the export. Most common: not on HTTPS, or no internet connection blocking the Excel library from loading.'}
+      </div>
+    </div>
+  `;
 }
 
 function renderSettings(settings) {
