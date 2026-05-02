@@ -157,7 +157,7 @@
     padding: 10px 14px 4px;
   }
   .loc-sug-item {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: flex-start; gap: 10px;
     width: 100%; padding: 11px 14px;
     background: none; border: none;
     text-align: left; font-size: 14px; color: #1a1a1a;
@@ -166,7 +166,16 @@
   }
   .loc-sug-item:last-child { border-bottom: none; }
   .loc-sug-item:active { background: #F2F6FB; }
-  .loc-sug-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .loc-sug-item span { flex: 1; min-width: 0; }
+  .loc-sug-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .loc-sug-primary {
+    font-size: 14px; font-weight: 500; color: #1a1a1a;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .loc-sug-secondary {
+    font-size: 12px; color: #6b6b6b; font-weight: 400;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .loc-sug-loading, .loc-sug-empty {
     padding: 14px; font-size: 13px; color: #888; text-align: center;
   }
@@ -1043,7 +1052,7 @@ function saveRecentLocation(name, coords) {
 
 // Build a location field with current-location button + suggestions dropdown
 function renderLocationField(key, currentValue) {
-  const placeholder = key === 'from' ? 'Where you started' : 'Where you went';
+  const placeholder = key === 'from' ? 'Address, business, or place' : 'Address, business, or place';
   return `
     <div class="loc-field" data-key="${key}">
       <div class="loc-input-wrap">
@@ -1133,9 +1142,10 @@ async function searchLocations(key, query) {
   sug.style.display = 'block';
 
   try {
-    // Nominatim search — restricted to Ireland (Republic of Ireland)
+    // Nominatim search — restricted to Ireland
     // viewbox biases ranking toward results within the Irish bounding box
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ie&limit=6&addressdetails=1&bounded=1&viewbox=-10.7,55.5,-5.3,51.3`;
+    // limit=10 gives more options for specific addresses
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ie&limit=10&addressdetails=1&bounded=1&viewbox=-10.7,55.5,-5.3,51.3`;
     const res = await fetch(url, {
       headers: { 'Accept': 'application/json' }
     });
@@ -1143,19 +1153,23 @@ async function searchLocations(key, query) {
     const results = await res.json();
 
     if (!results.length) {
-      sug.innerHTML = '<div class="loc-sug-empty">No matches in Ireland — try a different name or type the address manually</div>';
+      sug.innerHTML = '<div class="loc-sug-empty">No matches in Ireland — try a street name or nearby landmark</div>';
       return;
     }
 
     sug.innerHTML = results.map(r => {
-      const display = formatNominatimResult(r);
+      const rich = formatNominatimResultRich(r);
+      const flat = formatNominatimResult(r);
       const lat = parseFloat(r.lat);
       const lon = parseFloat(r.lon);
-      const safe = JSON.stringify({ name: display, lat, lon }).replace(/"/g, '&quot;');
+      const safe = JSON.stringify({ name: flat, lat, lon }).replace(/"/g, '&quot;');
       return `
         <button type="button" class="loc-sug-item" onmousedown="event.preventDefault();" onclick='pickLocation("${key}", ${safe})'>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0E3D7A" stroke-width="1.8" style="flex-shrink:0;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          <span>${escapeHtml(display)}</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0E3D7A" stroke-width="1.8" style="flex-shrink:0; margin-top: 2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span class="loc-sug-text">
+            <span class="loc-sug-primary">${escapeHtml(rich.primary)}</span>
+            ${rich.secondary ? `<span class="loc-sug-secondary">${escapeHtml(rich.secondary)}</span>` : ''}
+          </span>
         </button>`;
     }).join('');
   } catch (err) {
@@ -1164,23 +1178,57 @@ async function searchLocations(key, query) {
   }
 }
 
-// Convert Nominatim's verbose result into a tidier display name
-function formatNominatimResult(r) {
+// Convert Nominatim's verbose result into a structured display:
+// Returns { primary, secondary } — used to render two-line suggestions.
+// formatNominatimResult kept for backward compatibility (returns flat string).
+function formatNominatimResultRich(r) {
   const a = r.address || {};
-  const parts = [];
-  // Prefer named place: business, attraction, suburb
-  const name = a.amenity || a.shop || a.tourism || a.building || a.attraction || a.office;
-  if (name) parts.push(name);
-  // Locality
-  const locality = a.suburb || a.village || a.town || a.city || a.county;
-  if (locality && (!name || locality.toLowerCase() !== name.toLowerCase())) parts.push(locality);
-  // Country if foreign
-  if (a.country_code && a.country_code !== 'ie') parts.push(a.country);
-  if (parts.length === 0) {
-    // Fallback: take first 2 components of display_name
-    return r.display_name.split(',').slice(0, 2).join(', ').trim();
+
+  // Build primary line (most specific identifier)
+  const namedPlace = a.amenity || a.shop || a.tourism || a.attraction || a.office;
+  const houseNumber = a.house_number;
+  const road = a.road || a.pedestrian || a.path;
+  const building = a.building;
+
+  let primary;
+  if (namedPlace) {
+    primary = namedPlace;
+  } else if (houseNumber && road) {
+    primary = `${houseNumber} ${road}`;
+  } else if (road) {
+    primary = road;
+  } else if (building) {
+    primary = building;
+  } else {
+    // Take first segment of display_name as fallback
+    primary = (r.display_name || '').split(',')[0].trim();
   }
-  return parts.join(', ');
+
+  // Build secondary line (locality context)
+  const secondaryParts = [];
+  // If we used a named place, show the street as part of context
+  if (namedPlace && houseNumber && road) secondaryParts.push(`${houseNumber} ${road}`);
+  else if (namedPlace && road) secondaryParts.push(road);
+
+  const locality = a.suburb || a.neighbourhood || a.village || a.town || a.city_district || a.city;
+  if (locality && locality.toLowerCase() !== (primary || '').toLowerCase()) secondaryParts.push(locality);
+
+  const county = a.county;
+  if (county && (!locality || county.toLowerCase() !== locality.toLowerCase())) secondaryParts.push(county);
+
+  // Postcode (Eircode in Ireland)
+  if (a.postcode) secondaryParts.push(a.postcode);
+
+  return {
+    primary: primary || 'Unknown',
+    secondary: secondaryParts.join(', ')
+  };
+}
+
+// Flat string version — used for the field value and recents storage
+function formatNominatimResult(r) {
+  const rich = formatNominatimResultRich(r);
+  return rich.secondary ? `${rich.primary}, ${rich.secondary}` : rich.primary;
 }
 
 function pickLocation(key, payload) {
@@ -1325,7 +1373,7 @@ async function useCurrentLocation(key) {
         3: 'Location request timed out'
       };
       toast(msgs[err.code] || 'Could not get location');
-      if (input) input.placeholder = key === 'from' ? 'Where you started' : 'Where you went';
+      if (input) input.placeholder = 'Address, business, or place';
     },
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
   );
