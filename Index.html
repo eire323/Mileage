@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#2C5F4F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Dublin Fuels — Mileage</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #F4F1E8;
+    color: #1a1a1a;
+    font-size: 15px;
+    line-height: 1.5;
+    overscroll-behavior-y: contain;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  h1, h2, h3 { margin: 0; font-weight: 500; }
+  button { font-family: inherit; cursor: pointer; }
+  input, textarea, select { font-family: inherit; font-size: 16px; }
+
+  .app { max-width: 480px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; padding-bottom: 76px; position: relative; }
+
+  /* Top bar */
+  .appbar {
+    background: #2C5F4F; color: #fff;
+    padding: calc(env(safe-area-inset-top) + 14px) 18px 16px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .appbar h1 { font-size: 18px; letter-spacing: 0.1px; }
+  .appbar .sub { font-size: 12px; opacity: 0.75; margin-top: 2px; }
+  .appbar.with-back { display: flex; align-items: center; gap: 12px; }
+  .back-btn {
+    background: rgba(255,255,255,0.12); border: none; color: #fff;
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .back-btn svg { width: 20px; height: 20px; }
+
+  /* Page content */
+  .page { padding: 14px; }
+
+  /* Cards & layout */
+  .card {
+    background: #fff; border-radius: 14px; padding: 14px;
+    margin-bottom: 12px; border: 0.5px solid rgba(0,0,0,0.08);
+  }
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .stat { background: #fff; border-radius: 12px; padding: 14px; border: 0.5px solid rgba(0,0,0,0.08); }
+  .stat-label { font-size: 11px; color: #6b6b6b; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
+  .stat-value { font-family: 'Instrument Serif', Georgia, serif; font-size: 32px; font-weight: 400; color: #1a1a1a; margin-top: 2px; line-height: 1.1; }
+  .stat-sub { font-size: 12px; color: #2C5F4F; margin-top: 4px; font-weight: 500; }
+
+  .section-title { font-size: 12px; font-weight: 600; color: #6b6b6b; text-transform: uppercase; letter-spacing: 0.6px; margin: 14px 4px 8px; }
+
+  /* Trip rows */
+  .trip {
+    display: flex; align-items: center; padding: 12px;
+    background: #fff; border-radius: 12px; margin-bottom: 8px;
+    border: 0.5px solid rgba(0,0,0,0.08);
+    text-align: left; width: 100%; border: 0.5px solid rgba(0,0,0,0.08);
+  }
+  .trip-icon {
+    width: 40px; height: 40px; border-radius: 11px;
+    background: #E1F5EE; display: flex; align-items: center; justify-content: center;
+    margin-right: 12px; flex-shrink: 0;
+  }
+  .trip-info { flex: 1; min-width: 0; }
+  .trip-route { font-size: 14px; font-weight: 500; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trip-meta { font-size: 12px; color: #888; margin-top: 2px; }
+  .trip-amount { text-align: right; font-size: 14px; font-weight: 500; color: #2C5F4F; }
+  .trip-km { font-size: 11px; color: #888; margin-top: 1px; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 40px 20px; color: #888; }
+  .empty-title { font-size: 15px; font-weight: 500; color: #1a1a1a; margin-bottom: 4px; }
+  .empty-desc { font-size: 13px; }
+
+  /* FAB */
+  .fab {
+    position: fixed; bottom: calc(76px + env(safe-area-inset-bottom)); right: max(16px, calc((100vw - 480px) / 2 + 16px));
+    width: 56px; height: 56px; border-radius: 18px;
+    background: #2C5F4F; color: #fff; border: none;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(44,95,79,0.35);
+    z-index: 20;
+  }
+  .fab svg { width: 26px; height: 26px; }
+
+  /* Tab bar */
+  .tabbar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    max-width: 480px; margin: 0 auto;
+    background: #fff; border-top: 0.5px solid rgba(0,0,0,0.1);
+    display: flex; padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    z-index: 15;
+  }
+  .tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 4px; background: none; border: none; color: #888; font-size: 10.5px;
+    font-weight: 500;
+  }
+  .tab.active { color: #2C5F4F; }
+  .tab svg { width: 22px; height: 22px; }
+
+  /* Forms */
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block; font-size: 12px; color: #6b6b6b;
+    margin-bottom: 6px; font-weight: 500;
+  }
+  .field input, .field textarea, .field select {
+    width: 100%; background: #fff; border: 0.5px solid rgba(0,0,0,0.15);
+    border-radius: 10px; padding: 12px 14px; color: #1a1a1a;
+    transition: border-color 0.15s;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus {
+    outline: none; border-color: #2C5F4F; box-shadow: 0 0 0 3px rgba(44,95,79,0.12);
+  }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .preview-card { background: #F4F1E8; border-radius: 12px; padding: 14px; margin: 14px 0; }
+  .preview-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+  .preview-row .k { color: #6b6b6b; }
+  .preview-row .v { color: #1a1a1a; font-weight: 500; }
+  .preview-row.total { padding-top: 10px; border-top: 0.5px solid rgba(0,0,0,0.1); margin-top: 6px; }
+  .preview-row.total .v { color: #2C5F4F; font-size: 16px; }
+
+  /* Buttons */
+  .btn-primary {
+    background: #2C5F4F; color: #fff; border: none; border-radius: 12px;
+    padding: 14px; width: 100%; font-size: 15px; font-weight: 500;
+    margin-top: 8px;
+  }
+  .btn-primary:active { background: #234E40; }
+  .btn-primary:disabled { background: #B5C2BC; }
+  .btn-secondary {
+    background: #fff; color: #2C5F4F; border: 1px solid #2C5F4F;
+    border-radius: 12px; padding: 13px; width: 100%; font-size: 15px; font-weight: 500;
+    margin-top: 8px;
+  }
+  .btn-danger {
+    background: #fff; color: #C8453B; border: 1px solid #E5BFBC;
+    border-radius: 12px; padding: 13px; width: 100%; font-size: 15px; font-weight: 500;
+    margin-top: 8px;
+  }
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* GPS card */
+  .gps-card {
+    background: #2C5F4F; color: #fff; border-radius: 16px;
+    padding: 20px; margin-bottom: 14px;
+  }
+  .gps-status { display: flex; align-items: center; gap: 8px; font-size: 12px; opacity: 0.9; }
+  .gps-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #5DCAA5;
+    animation: pulse 1.6s infinite;
+  }
+  .gps-dot.error { background: #F0997B; animation: none; }
+  .gps-dot.idle { background: rgba(255,255,255,0.5); animation: none; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(93,202,165,0.6); }
+    70% { box-shadow: 0 0 0 10px rgba(93,202,165,0); }
+    100% { box-shadow: 0 0 0 0 rgba(93,202,165,0); }
+  }
+  .gps-distance {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 56px; line-height: 1; margin-top: 10px; font-weight: 400;
+  }
+  .gps-unit { font-size: 18px; opacity: 0.85; margin-left: 6px; }
+  .gps-meta { display: flex; justify-content: space-between; margin-top: 14px; font-size: 12px; opacity: 0.85; }
+
+  /* Photo grid */
+  .photo-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    margin-bottom: 14px;
+  }
+  .photo-tile {
+    aspect-ratio: 1; background: #E8EDE5; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    border: 0.5px solid rgba(0,0,0,0.08); position: relative; overflow: hidden;
+  }
+  .photo-tile img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-tile.add {
+    background: #fff; border: 1px dashed rgba(0,0,0,0.2);
+    flex-direction: column; gap: 4px; color: #888; font-size: 11px;
+  }
+  .photo-tile .remove {
+    position: absolute; top: 4px; right: 4px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,0,0,0.6); color: #fff; border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; line-height: 1;
+  }
+
+  /* Bands */
+  .band-row {
+    display: flex; align-items: center; gap: 12px; padding: 12px 0;
+    border-bottom: 0.5px solid rgba(0,0,0,0.06);
+  }
+  .band-row:last-child { border-bottom: 0; }
+  .band-label { flex: 1; font-size: 13px; }
+  .band-name { font-weight: 500; color: #1a1a1a; }
+  .band-range { font-size: 11px; color: #888; margin-top: 2px; }
+  .band-bar { width: 70px; height: 6px; background: #E8EDE5; border-radius: 3px; overflow: hidden; }
+  .band-fill { height: 100%; background: #2C5F4F; border-radius: 3px; transition: width 0.3s; }
+  .band-amount { font-size: 13px; font-weight: 500; color: #2C5F4F; min-width: 64px; text-align: right; }
+
+  /* Active band hint */
+  .active-band {
+    background: #fff; border-radius: 14px; padding: 14px;
+    margin-bottom: 12px; border: 0.5px solid rgba(0,0,0,0.08);
+  }
+  .ab-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .ab-title { font-size: 13px; font-weight: 500; }
+  .badge {
+    display: inline-block; padding: 3px 10px; background: #E1F5EE;
+    color: #0F6E56; font-size: 11px; font-weight: 500; border-radius: 999px;
+  }
+  .progress { height: 6px; background: #E8EDE5; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #2C5F4F; }
+  .progress-meta { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-top: 6px; }
+
+  /* Old monthly chart (kept for any legacy use) */
+  .month-bar { display: flex; align-items: flex-end; gap: 5px; height: 110px; padding: 8px 0 4px; }
+  .mb-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .mb-rect-wrap { flex: 1; display: flex; align-items: flex-end; width: 100%; }
+  .mb-rect { width: 100%; background: #2C5F4F; border-radius: 3px 3px 0 0; min-height: 2px; }
+  .mb-rect.empty { background: #E8EDE5; }
+  .mb-label { font-size: 10px; color: #888; }
+
+  /* Summary hero card */
+  .hero-card {
+    background: linear-gradient(135deg, #2C5F4F 0%, #234E40 100%);
+    color: #fff; border-radius: 16px; padding: 18px 18px 16px;
+    margin-bottom: 16px;
+  }
+  .hero-main { margin-bottom: 14px; }
+  .hero-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.75; font-weight: 500; }
+  .hero-value {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 42px; line-height: 1.05; margin-top: 4px; font-weight: 400;
+    letter-spacing: -0.5px;
+  }
+  .hero-divider { height: 0.5px; background: rgba(255,255,255,0.18); margin-bottom: 12px; }
+  .hero-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .hero-meta-item .hm-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; font-weight: 500; }
+  .hero-meta-item .hm-value { font-size: 16px; font-weight: 500; margin-top: 3px; }
+  .hero-meta-item .hm-unit { font-size: 12px; opacity: 0.75; font-weight: 400; }
+
+  /* New monthly chart */
+  .chart-card { padding: 16px 14px 14px; }
+  .chart-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  .chart-peak-label { font-size: 10.5px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
+  .chart-peak-value { font-size: 14px; font-weight: 500; color: #1a1a1a; margin-top: 2px; }
+  .chart-grid { display: flex; gap: 8px; height: 130px; }
+  .chart-yaxis {
+    display: flex; flex-direction: column; justify-content: space-between;
+    font-size: 9.5px; color: #aaa; padding: 2px 0; flex-shrink: 0;
+    width: 28px; text-align: right;
+  }
+  .chart-bars {
+    flex: 1; display: flex; align-items: flex-end; gap: 4px;
+    position: relative; padding: 2px 0;
+  }
+  .chart-gridline {
+    position: absolute; left: 0; right: 0; height: 0.5px;
+    background: rgba(0,0,0,0.06); pointer-events: none;
+  }
+  .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; position: relative; }
+  .chart-col-rail { flex: 1; width: 100%; display: flex; align-items: flex-end; position: relative; }
+  .chart-col-tooltip {
+    position: absolute; top: -2px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; color: #888; white-space: nowrap; opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .chart-col:hover .chart-col-tooltip { opacity: 1; }
+  .chart-bar {
+    width: 100%; background: #B5C9BD; border-radius: 3px 3px 0 0;
+    min-height: 2px; transition: background 0.15s;
+  }
+  .chart-bar.peak { background: #2C5F4F; }
+  .chart-bar.current { background: #5DCAA5; }
+  .chart-label { font-size: 10px; color: #888; font-weight: 500; }
+  .chart-label.current { color: #2C5F4F; font-weight: 600; }
+
+  /* Rate band cards */
+  .band-card {
+    background: #fff; border-radius: 14px; padding: 14px;
+    margin-bottom: 8px; border: 0.5px solid rgba(0,0,0,0.08);
+  }
+  .band-card.active { border: 1px solid #2C5F4F; background: #FAFCF9; }
+  .band-card.inactive { opacity: 0.65; }
+  .band-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 12px; }
+  .band-card-name { font-size: 14px; font-weight: 500; color: #1a1a1a; display: flex; align-items: center; gap: 8px; }
+  .band-card-range { font-size: 11.5px; color: #888; margin-top: 3px; }
+  .band-card-amount {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 22px; line-height: 1; color: #2C5F4F; font-weight: 400;
+    flex-shrink: 0;
+  }
+  .band-card.inactive .band-card-amount { color: #b0b0b0; }
+  .band-card-bar { height: 5px; background: #EFECE3; border-radius: 3px; overflow: hidden; }
+  .band-card-fill { height: 100%; background: #2C5F4F; border-radius: 3px; transition: width 0.4s ease; }
+  .band-card.inactive .band-card-fill { background: #D5D2C9; }
+  .band-card-foot {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: #888; margin-top: 8px; font-weight: 500;
+  }
+  .badge-active {
+    background: #E1F5EE; color: #0F6E56;
+    font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 999px; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+
+  /* Trips grouped by month */
+  .month-group { margin-bottom: 16px; }
+  .month-group-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 0 4px 8px; margin-top: 4px;
+  }
+  .month-group-title {
+    font-size: 13px; font-weight: 600; color: #1a1a1a;
+    letter-spacing: 0.1px;
+  }
+  .month-group-stats { font-size: 11.5px; color: #6b6b6b; font-weight: 500; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: calc(90px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+    background: #1a1a1a; color: #fff; padding: 10px 18px;
+    border-radius: 10px; font-size: 13px; z-index: 100;
+    opacity: 0; transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    max-width: calc(100% - 32px);
+    text-align: center;
+  }
+  .toast.show { opacity: 1; }
+
+  /* Settings list */
+  .list-row {
+    display: flex; align-items: center; padding: 14px;
+    background: #fff; border-radius: 12px; margin-bottom: 8px;
+    border: 0.5px solid rgba(0,0,0,0.08);
+    text-align: left; width: 100%;
+  }
+  .list-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    margin-right: 12px; flex-shrink: 0;
+  }
+  .list-info { flex: 1; }
+  .list-title { font-size: 14px; font-weight: 500; }
+  .list-desc { font-size: 12px; color: #888; margin-top: 2px; }
+  .chev { color: #b0b0b0; font-size: 20px; line-height: 1; }
+
+  /* Receipt detail */
+  .info-line {
+    display: flex; justify-content: space-between; font-size: 13px;
+    padding: 8px 0; border-bottom: 0.5px solid rgba(0,0,0,0.06);
+  }
+  .info-line:last-child { border-bottom: 0; }
+  .info-line .k { color: #6b6b6b; }
+  .info-line .v { color: #1a1a1a; font-weight: 500; }
+
+  /* Hidden file input */
+  .file-input { display: none; }
+
+  /* Photo viewer */
+  .lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+    z-index: 200; display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .lightbox.show { display: flex; }
+  .lightbox img { max-width: 100%; max-height: 90vh; border-radius: 8px; }
+  .lightbox-close {
+    position: absolute; top: calc(env(safe-area-inset-top) + 16px); right: 16px;
+    width: 40px; height: 40px; border-radius: 50%;
+    background: rgba(255,255,255,0.15); color: #fff; border: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .hidden { display: none !important; }
+
+  /* Onboarding */
+  .onboard {
+    padding: 24px 18px;
+    min-height: 100vh; min-height: 100dvh;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .onboard h1 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 36px; font-weight: 400; line-height: 1.1; margin-bottom: 8px;
+  }
+  .onboard .lede { font-size: 14px; color: #6b6b6b; margin-bottom: 24px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div class="app" id="app"></div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox(event)">✕</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   DATA LAYER — localStorage
+   ============================================================ */
+const STORAGE_KEY = 'dublin_fuels_mileage_v1';
+const SETTINGS_KEY = 'dublin_fuels_settings_v1';
+
+const DEFAULT_SETTINGS = {
+  director: 'Damian Donnelly',
+  vehicleReg: '232-D-1993',
+  taxYear: new Date().getFullYear(),
+  company: 'Dublin Fuels Ltd',
+  // Revenue Civil Service rates — EV treated as 1,201–1,500cc band
+  bands: [
+    { name: 'Band 1', from: 0, to: 1500, rate: 0.4340 },
+    { name: 'Band 2', from: 1501, to: 5500, rate: 0.7918 },
+    { name: 'Band 3', from: 5501, to: 25000, rate: 0.3179 },
+    { name: 'Band 4', from: 25001, to: Infinity, rate: 0.2385 }
+  ]
+};
+
+function loadTrips() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+function saveTrips(trips) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+}
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    const merged = raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : { ...DEFAULT_SETTINGS };
+    // JSON.stringify turns Infinity into null — restore it for any uncapped band
+    if (merged.bands) {
+      merged.bands = merged.bands.map(b => ({
+        ...b,
+        to: (b.to === null || b.to === undefined || b.to === 'No limit') ? Infinity : b.to
+      }));
+    }
+    return merged;
+  } catch { return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); }
+}
+function saveSettings(s) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+}
+
+/* ============================================================
+   RATE BAND CALCULATION
+   ============================================================ */
+function getBandForKm(cumulativeKm, settings) {
+  // returns the band that the *next* km falls into
+  for (const b of settings.bands) {
+    if (cumulativeKm >= b.from - 1 && cumulativeKm <= b.to) return b;
+  }
+  return settings.bands[settings.bands.length - 1];
+}
+
+// Calculate reimbursement for a trip taking band crossings into account
+function calcReimbursement(distance, kmBeforeTrip, settings) {
+  let remaining = distance;
+  let total = 0;
+  let cursor = kmBeforeTrip;
+  for (const b of settings.bands) {
+    if (remaining <= 0) break;
+    const bandTop = b.to === Infinity ? Infinity : b.to;
+    if (cursor > bandTop) continue;
+    const startInBand = Math.max(cursor, b.from - 1 + 1);
+    const availInBand = bandTop === Infinity ? remaining : (bandTop - cursor);
+    const useInBand = Math.min(remaining, availInBand);
+    if (useInBand > 0) {
+      total += useInBand * b.rate;
+      remaining -= useInBand;
+      cursor += useInBand;
+    }
+  }
+  return total;
+}
+
+function computeYtdStats(trips, settings) {
+  const sorted = [...trips].sort((a, b) => a.date.localeCompare(b.date));
+  let cumKm = 0;
+  let totalReimburse = 0;
+  const bandKm = [0, 0, 0, 0];
+  const bandReimburse = [0, 0, 0, 0];
+
+  for (const t of sorted) {
+    const dist = parseFloat(t.distance) || 0;
+    let remaining = dist;
+    let cursor = cumKm;
+    for (let i = 0; i < settings.bands.length; i++) {
+      if (remaining <= 0) break;
+      const b = settings.bands[i];
+      const top = b.to === Infinity ? Infinity : b.to;
+      if (cursor > top) continue;
+      const avail = top === Infinity ? remaining : (top - cursor);
+      const use = Math.min(remaining, avail);
+      if (use > 0) {
+        bandKm[i] += use;
+        bandReimburse[i] += use * b.rate;
+        totalReimburse += use * b.rate;
+        remaining -= use;
+        cursor += use;
+      }
+    }
+    cumKm += dist;
+  }
+
+  return { totalKm: cumKm, totalReimburse, bandKm, bandReimburse };
+}
+
+/* ============================================================
+   GPS DISTANCE TRACKER
+   ============================================================ */
+const gpsState = {
+  watchId: null,
+  tracking: false,
+  paused: false,
+  distance: 0, // km
+  startTime: null,
+  lastPos: null,
+  positions: [],
+  status: 'idle', // idle | acquiring | tracking | error
+  errorMsg: '',
+  startLocation: '',
+};
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371; // km
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function startGPS() {
+  if (!navigator.geolocation) {
+    gpsState.status = 'error';
+    gpsState.errorMsg = 'GPS not supported on this device';
+    render();
+    return;
+  }
+  gpsState.tracking = true;
+  gpsState.paused = false;
+  gpsState.distance = 0;
+  gpsState.startTime = Date.now();
+  gpsState.lastPos = null;
+  gpsState.positions = [];
+  gpsState.status = 'acquiring';
+  gpsState.errorMsg = '';
+  render();
+
+  gpsState.watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      if (gpsState.paused) return;
+      const { latitude, longitude, accuracy } = pos.coords;
+      // Reject low-accuracy fixes
+      if (accuracy > 50) return;
+      const newPos = { lat: latitude, lon: longitude, t: pos.timestamp };
+      if (gpsState.lastPos) {
+        const d = haversine(gpsState.lastPos.lat, gpsState.lastPos.lon, latitude, longitude);
+        // Reject jumps > 200m in <1s (GPS noise)
+        const dt = (newPos.t - gpsState.lastPos.t) / 1000;
+        if (dt > 0 && (d / dt) < 0.05) {
+          // Below 50 m/s = ~180 km/h, sanity passed
+          if (d > 0.005) { // ignore <5m drift
+            gpsState.distance += d;
+          }
+        }
+      }
+      gpsState.lastPos = newPos;
+      gpsState.positions.push(newPos);
+      gpsState.status = 'tracking';
+      renderGpsLive();
+    },
+    (err) => {
+      gpsState.status = 'error';
+      gpsState.errorMsg = err.code === 1 ? 'Location permission denied' : 'GPS error: ' + err.message;
+      render();
+    },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+  );
+}
+
+function stopGPS() {
+  if (gpsState.watchId !== null) {
+    navigator.geolocation.clearWatch(gpsState.watchId);
+    gpsState.watchId = null;
+  }
+  gpsState.tracking = false;
+}
+
+function pauseGPS() {
+  gpsState.paused = !gpsState.paused;
+  render();
+}
+
+function renderGpsLive() {
+  const dist = document.getElementById('gps-live-distance');
+  const time = document.getElementById('gps-live-time');
+  if (dist) dist.textContent = gpsState.distance.toFixed(1);
+  if (time) {
+    const min = Math.floor((Date.now() - gpsState.startTime) / 60000);
+    time.textContent = min + ' min';
+  }
+}
+
+/* ============================================================
+   APP STATE & ROUTING
+   ============================================================ */
+let route = { name: 'home', params: {} };
+let editingTrip = null;
+
+function navigate(name, params = {}) {
+  route = { name, params };
+  render();
+  window.scrollTo(0, 0);
+}
+
+window.addEventListener('popstate', () => { /* simple stack-less routing */ });
+
+/* ============================================================
+   FORMATTERS
+   ============================================================ */
+const fmtEur = n => '€' + (n || 0).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtKm = n => (n || 0).toLocaleString('en-IE', { maximumFractionDigits: 1 }) + ' km';
+const fmtDate = iso => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-IE', { weekday: 'short', day: '2-digit', month: 'short' });
+};
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+/* ============================================================
+   ICONS
+   ============================================================ */
+const ICONS = {
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-7 9 7v9a2 2 0 0 1-2 2h-3v-7h-8v7H5a2 2 0 0 1-2-2z"/></svg>',
+  log: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>',
+  car: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="1.8"><path d="M5 17h14M5 17l-2-5 3-5h12l3 5-2 5M5 17v3M19 17v3"/><circle cx="8" cy="17" r="1.5" fill="#0F6E56"/><circle cx="16" cy="17" r="1.5" fill="#0F6E56"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
+  excel: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" fill="#1F7A4D"/><text x="12" y="16" font-size="9" font-weight="600" fill="white" text-anchor="middle" font-family="Arial">XLS</text></svg>',
+  pdf: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" fill="#C8453B"/><text x="12" y="16" font-size="8" font-weight="600" fill="white" text-anchor="middle" font-family="Arial">PDF</text></svg>',
+  settings: '<svg viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v6M12 17v6M4.2 4.2l4.3 4.3M15.5 15.5l4.3 4.3M1 12h6M17 12h6M4.2 19.8l4.3-4.3M15.5 8.5l4.3-4.3"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2l8 8L10 22H2v-8z"/></svg>'
+};
+
+/* ============================================================
+   RENDER ROUTER
+   ============================================================ */
+function render() {
+  const settings = loadSettings();
+  const trips = loadTrips();
+  const root = document.getElementById('app');
+
+  // First-run onboarding
+  if (!localStorage.getItem(SETTINGS_KEY) && route.name === 'home') {
+    root.innerHTML = renderOnboard();
+    return;
+  }
+
+  let body = '';
+  switch (route.name) {
+    case 'home': body = renderHome(trips, settings); break;
+    case 'gps': body = renderGps(settings); break;
+    case 'manual': body = renderManual(settings); break;
+    case 'save': body = renderSave(settings); break;
+    case 'detail': body = renderDetail(route.params.id, trips, settings); break;
+    case 'edit': body = renderEdit(route.params.id, trips, settings); break;
+    case 'summary': body = renderSummary(trips, settings); break;
+    case 'more': body = renderMore(); break;
+    case 'export': body = renderExport(trips, settings); break;
+    case 'settings': body = renderSettings(settings); break;
+    default: body = renderHome(trips, settings);
+  }
+
+  // Determine if tab bar should show
+  const showTabs = ['home', 'gps', 'summary', 'more'].includes(route.name);
+  const tabsHtml = showTabs ? renderTabs(route.name) : '';
+
+  root.innerHTML = body + tabsHtml;
+}
+
+/* ============================================================
+   ONBOARDING
+   ============================================================ */
+function renderOnboard() {
+  return `
+  <div class="onboard">
+    <div style="font-size: 12px; color: #2C5F4F; font-weight: 600; letter-spacing: 1px; margin-bottom: 12px;">DUBLIN FUELS LTD</div>
+    <h1>EV mileage<br>subsistence tracker</h1>
+    <p class="lede">Log trips on the go, calculate Revenue civil-service rates automatically, and export to Excel for your accountant.</p>
+
+    <div class="field">
+      <label>Director name</label>
+      <input id="ob-director" value="Damian Donnelly">
+    </div>
+    <div class="field">
+      <label>Vehicle registration</label>
+      <input id="ob-vehicle" value="232-D-1993">
+    </div>
+    <div class="field">
+      <label>Tax year</label>
+      <input id="ob-year" type="number" value="${new Date().getFullYear()}">
+    </div>
+
+    <button class="btn-primary" onclick="completeOnboard()">Get started</button>
+    <p style="font-size: 11px; color: #888; margin-top: 14px; text-align: center;">Rates can be updated later from settings</p>
+  </div>`;
+}
+
+function completeOnboard() {
+  const settings = {
+    ...DEFAULT_SETTINGS,
+    director: document.getElementById('ob-director').value || 'Director',
+    vehicleReg: document.getElementById('ob-vehicle').value || '',
+    taxYear: parseInt(document.getElementById('ob-year').value) || new Date().getFullYear(),
+  };
+  saveSettings(settings);
+  navigate('home');
+}
+
+/* ============================================================
+   HOME
+   ============================================================ */
+function renderHome(trips, settings) {
+  const stats = computeYtdStats(trips, settings);
+  const activeBand = getBandForKm(stats.totalKm, settings);
+  const bandIdx = settings.bands.indexOf(activeBand);
+  const kmInBand = stats.bandKm[bandIdx];
+  const bandSize = activeBand.to === Infinity ? Infinity : (activeBand.to - (activeBand.from - 1));
+  const pct = activeBand.to === Infinity ? 100 : Math.min(100, (kmInBand / bandSize) * 100);
+  const kmToNext = activeBand.to === Infinity ? null : (activeBand.to - stats.totalKm);
+
+  const recent = [...trips].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id).slice(0, 6);
+
+  return `
+  <div class="appbar">
+    <h1>${settings.company}</h1>
+    <div class="sub">${settings.director} · ${settings.vehicleReg} · ${settings.taxYear}</div>
+  </div>
+  <div class="page">
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-label">YTD km</div>
+        <div class="stat-value">${stats.totalKm.toLocaleString('en-IE', { maximumFractionDigits: 0 })}</div>
+        <div class="stat-sub">${activeBand.name} active</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">YTD reimburse</div>
+        <div class="stat-value">${stats.totalReimburse.toLocaleString('en-IE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</div>
+        <div class="stat-sub">${trips.length} trip${trips.length === 1 ? '' : 's'}</div>
+      </div>
+    </div>
+
+    <div class="active-band">
+      <div class="ab-head">
+        <div class="ab-title">${activeBand.name} · ${activeBand.from.toLocaleString()} – ${activeBand.to === Infinity ? '∞' : activeBand.to.toLocaleString()} km</div>
+        <span class="badge">€${activeBand.rate.toFixed(4)} / km</span>
+      </div>
+      <div class="progress"><div class="progress-fill" style="width:${pct}%;"></div></div>
+      <div class="progress-meta">
+        <span>${Math.round(kmInBand)} km in band</span>
+        <span>${kmToNext === null ? 'No cap' : Math.round(kmToNext) + ' km until next band'}</span>
+      </div>
+    </div>
+
+    <div class="section-title">Recent trips</div>
+    ${recent.length === 0 ? `
+      <div class="card">
+        <div class="empty">
+          <div class="empty-title">No trips yet</div>
+          <div class="empty-desc">Tap the + button to log your first trip</div>
+        </div>
+      </div>
+    ` : recent.map(t => tripRow(t)).join('')}
+
+    ${trips.length > 6 ? `<button class="btn-secondary" onclick="navigate('summary')">View all ${trips.length} trips</button>` : ''}
+  </div>
+
+  <button class="fab" onclick="navigate('gps')" aria-label="Log new trip">
+    ${ICONS.plus}
+  </button>`;
+}
+
+function tripRow(t) {
+  return `
+  <button class="trip" onclick="navigate('detail', { id: ${t.id} })">
+    <div class="trip-icon">${ICONS.car}</div>
+    <div class="trip-info">
+      <div class="trip-route">${escapeHtml(t.from || '—')} → ${escapeHtml(t.to || '—')}</div>
+      <div class="trip-meta">${fmtDate(t.date)}${t.purpose ? ' · ' + escapeHtml(t.purpose) : ''}</div>
+    </div>
+    <div>
+      <div class="trip-amount">${fmtEur(t.reimbursement)}</div>
+      <div class="trip-km">${fmtKm(t.distance)}</div>
+    </div>
+  </button>`;
+}
+
+/* ============================================================
+   GPS LOGGING
+   ============================================================ */
+function renderGps(settings) {
+  if (gpsState.tracking) return renderGpsActive(settings);
+
+  return `
+  <div class="appbar with-back">
+    <button class="back-btn" onclick="navigate('home')">${ICONS.back}</button>
+    <div><h1>Log trip</h1><div class="sub">GPS or manual entry</div></div>
+  </div>
+  <div class="page">
+    <div class="card" style="text-align: center; padding: 24px 18px;">
+      <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 28px; line-height: 1.15; margin-bottom: 6px;">Track with GPS</div>
+      <p style="font-size: 13px; color: #6b6b6b; margin: 0 0 18px;">Auto-calculates distance as you drive. Works in the background but keep the screen on for best results.</p>
+      <button class="btn-primary" onclick="startGPS()">Start tracking</button>
+    </div>
+
+    <div style="text-align: center; margin: 16px 0; color: #888; font-size: 12px;">— or —</div>
+
+    <button class="btn-secondary" onclick="navigate('manual')">Enter trip manually</button>
+  </div>`;
+}
+
+function renderGpsActive(settings) {
+  const stats = computeYtdStats(loadTrips(), settings);
+  const activeBand = getBandForKm(stats.totalKm + gpsState.distance, settings);
+  const estReimburse = calcReimbursement(gpsState.distance, stats.totalKm, settings);
+  const min = Math.floor((Date.now() - gpsState.startTime) / 60000);
+
+  let statusText = 'Acquiring GPS…';
+  let dotClass = 'idle';
+  if (gpsState.status === 'tracking') {
+    statusText = gpsState.paused ? 'Paused' : 'Tracking · GPS lock';
+    dotClass = gpsState.paused ? 'idle' : '';
+  } else if (gpsState.status === 'error') {
+    statusText = gpsState.errorMsg;
+    dotClass = 'error';
+  }
+
+  return `
+  <div class="appbar with-back">
+    <button class="back-btn" onclick="cancelGPS()">${ICONS.back}</button>
+    <div><h1>Tracking trip</h1><div class="sub">Live distance</div></div>
+  </div>
+  <div class="page">
+    <div class="gps-card">
+      <div class="gps-status"><span class="gps-dot ${dotClass}"></span><span>${statusText}</span></div>
+      <div><span class="gps-distance" id="gps-live-distance">${gpsState.distance.toFixed(1)}</span><span class="gps-unit">km</span></div>
+      <div class="gps-meta">
+        <span>Time · <span id="gps-live-time">${min} min</span></span>
+        <span>${activeBand.name} · €${activeBand.rate.toFixed(4)}/km</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="info-line"><span class="k">Distance so far</span><span class="v">${fmtKm(gpsState.distance)}</span></div>
+      <div class="info-line"><span class="k">Est. reimbursement</span><span class="v" style="color:#2C5F4F;">${fmtEur(estReimburse)}</span></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="pauseGPS()">${gpsState.paused ? 'Resume' : 'Pause'}</button>
+      <button class="btn-primary" onclick="finishGPS()" ${gpsState.distance < 0.1 ? 'disabled' : ''}>Stop &amp; save</button>
+    </div>
+
+    <p style="font-size: 11px; color: #888; text-align: center; margin-top: 18px;">Keep the app open while driving. iOS may pause GPS if you switch apps.</p>
+  </div>`;
+}
+
+function cancelGPS() {
+  if (gpsState.tracking && !confirm('Discard this trip?')) return;
+  stopGPS();
+  navigate('home');
+}
+
+function finishGPS() {
+  stopGPS();
+  // Stash the captured distance for the save form
+  editingTrip = {
+    distance: gpsState.distance,
+    date: todayIso(),
+    fromGPS: true,
+  };
+  navigate('save');
+}
+
+// Live update timer for GPS screen
+setInterval(() => {
+  if (gpsState.tracking && route.name === 'gps') renderGpsLive();
+}, 1000);
+
+/* ============================================================
+   MANUAL ENTRY & SAVE
+   ============================================================ */
+function renderManual(settings) {
+  editingTrip = editingTrip || { date: todayIso(), distance: 0, fromGPS: false };
+  return renderTripForm('Manual entry', 'home');
+}
+
+function renderSave(settings) {
+  return renderTripForm('Save trip', 'gps');
+}
+
+function renderEdit(id, trips, settings) {
+  const trip = trips.find(t => t.id === id);
+  if (!trip) { navigate('home'); return ''; }
+  editingTrip = { ...trip, isEdit: true };
+  return renderTripForm('Edit trip', 'detail', { id });
+}
+
+function renderTripForm(title, backRoute, backParams = {}) {
+  const settings = loadSettings();
+  const trips = loadTrips();
+  const stats = computeYtdStats(trips.filter(t => !editingTrip.isEdit || t.id !== editingTrip.id), settings);
+  const dist = parseFloat(editingTrip.distance) || 0;
+  const estReimburse = calcReimbursement(dist, stats.totalKm, settings);
+  const activeBand = getBandForKm(stats.totalKm + 0.1, settings);
+
+  const photosHtml = (editingTrip.photos || []).map((p, i) => `
+    <div class="photo-tile" onclick="openLightbox('${p}')">
+      <img src="${p}" alt="">
+      <button class="remove" onclick="event.stopPropagation(); removePhoto(${i})">✕</button>
+    </div>`).join('') +
+    `<label class="photo-tile add">
+      ${ICONS.plus}<span>Add photo</span>
+      <input type="file" accept="image/*" capture="environment" class="file-input" onchange="addPhoto(event)">
+    </label>`;
+
+  return `
+  <div class="appbar with-back">
+    <button class="back-btn" onclick="cancelTripForm('${backRoute}', ${JSON.stringify(backParams)})">${ICONS.back}</button>
+    <div><h1>${title}</h1><div class="sub">${editingTrip.fromGPS ? 'GPS captured' : 'Add details'}</div></div>
+  </div>
+  <div class="page">
+    <div class="field-row">
+      <div class="field">
+        <label>Date</label>
+        <input id="tf-date" type="date" value="${editingTrip.date || todayIso()}" oninput="updateField('date', this.value)">
+      </div>
+      <div class="field">
+        <label>Distance (km)</label>
+        <input id="tf-distance" type="number" step="0.1" min="0" value="${dist}" oninput="updateField('distance', parseFloat(this.value) || 0)">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>From</label>
+      <input id="tf-from" placeholder="e.g. Tallaght HQ" value="${escapeAttr(editingTrip.from || '')}" oninput="updateField('from', this.value)">
+    </div>
+
+    <div class="field">
+      <label>To</label>
+      <input id="tf-to" placeholder="e.g. Galway client site" value="${escapeAttr(editingTrip.to || '')}" oninput="updateField('to', this.value)">
+    </div>
+
+    <div class="field">
+      <label>Purpose / description</label>
+      <textarea id="tf-purpose" placeholder="e.g. Q2 review meeting" oninput="updateField('purpose', this.value)">${escapeHtml(editingTrip.purpose || '')}</textarea>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Odometer start <span style="color:#aaa; font-weight:400;">(opt.)</span></label>
+        <input id="tf-odo-start" type="number" min="0" value="${editingTrip.odoStart || ''}" oninput="updateField('odoStart', this.value)">
+      </div>
+      <div class="field">
+        <label>Odometer end <span style="color:#aaa; font-weight:400;">(opt.)</span></label>
+        <input id="tf-odo-end" type="number" min="0" value="${editingTrip.odoEnd || ''}" oninput="updateField('odoEnd', this.value)">
+      </div>
+    </div>
+
+    <div class="section-title">Photos &amp; receipts</div>
+    <div class="photo-grid">${photosHtml}</div>
+
+    <div class="preview-card">
+      <div class="preview-row"><span class="k">Rate (${activeBand.name})</span><span class="v">€${activeBand.rate.toFixed(4)} / km</span></div>
+      <div class="preview-row"><span class="k">Distance</span><span class="v">${fmtKm(dist)}</span></div>
+      <div class="preview-row total"><span class="k">Reimbursement</span><span class="v">${fmtEur(estReimburse)}</span></div>
+    </div>
+
+    <button class="btn-primary" onclick="saveCurrentTrip('${backRoute}')" ${dist <= 0 ? 'disabled' : ''}>${editingTrip.isEdit ? 'Update trip' : 'Save trip'}</button>
+    <button class="btn-secondary" onclick="cancelTripForm('${backRoute}', ${JSON.stringify(backParams)})">Cancel</button>
+  </div>`;
+}
+
+function updateField(key, value) {
+  if (!editingTrip) editingTrip = {};
+  editingTrip[key] = value;
+  // Re-render only the preview card to avoid losing focus
+  const stats = computeYtdStats(loadTrips().filter(t => !editingTrip.isEdit || t.id !== editingTrip.id), loadSettings());
+  const dist = parseFloat(editingTrip.distance) || 0;
+  const estReimburse = calcReimbursement(dist, stats.totalKm, loadSettings());
+  const preview = document.querySelector('.preview-card');
+  if (preview) {
+    const settings = loadSettings();
+    const activeBand = getBandForKm(stats.totalKm + 0.1, settings);
+    preview.innerHTML = `
+      <div class="preview-row"><span class="k">Rate (${activeBand.name})</span><span class="v">€${activeBand.rate.toFixed(4)} / km</span></div>
+      <div class="preview-row"><span class="k">Distance</span><span class="v">${fmtKm(dist)}</span></div>
+      <div class="preview-row total"><span class="k">Reimbursement</span><span class="v">${fmtEur(estReimburse)}</span></div>`;
+  }
+  const saveBtn = document.querySelector('.btn-primary');
+  if (saveBtn) saveBtn.disabled = dist <= 0;
+}
+
+function cancelTripForm(backRoute, params) {
+  if (editingTrip && !editingTrip.isEdit && (editingTrip.distance > 0 || editingTrip.from || editingTrip.to)) {
+    if (!confirm('Discard this trip?')) return;
+  }
+  editingTrip = null;
+  navigate(backRoute, params || {});
+}
+
+function saveCurrentTrip(backRoute) {
+  if (!editingTrip || (parseFloat(editingTrip.distance) || 0) <= 0) {
+    toast('Distance must be greater than 0');
+    return;
+  }
+  const trips = loadTrips();
+  const settings = loadSettings();
+  const dist = parseFloat(editingTrip.distance);
+
+  if (editingTrip.isEdit) {
+    const idx = trips.findIndex(t => t.id === editingTrip.id);
+    if (idx >= 0) {
+      trips[idx] = { ...trips[idx], ...editingTrip };
+    }
+  } else {
+    const id = Date.now();
+    trips.push({
+      id,
+      date: editingTrip.date || todayIso(),
+      from: editingTrip.from || '',
+      to: editingTrip.to || '',
+      purpose: editingTrip.purpose || '',
+      distance: dist,
+      odoStart: editingTrip.odoStart || '',
+      odoEnd: editingTrip.odoEnd || '',
+      photos: editingTrip.photos || [],
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  // Recalculate all reimbursements (since order matters for band crossing)
+  const sorted = [...trips].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  let cumKm = 0;
+  for (const t of sorted) {
+    t.reimbursement = calcReimbursement(parseFloat(t.distance) || 0, cumKm, settings);
+    t.cumulativeKm = cumKm + (parseFloat(t.distance) || 0);
+    cumKm = t.cumulativeKm;
+  }
+  saveTrips(sorted);
+  editingTrip = null;
+  toast(editingTrip?.isEdit ? 'Trip updated' : 'Trip saved');
+  navigate('home');
+}
+
+/* ============================================================
+   PHOTO HANDLING
+   ============================================================ */
+function addPhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    // Compress image to keep localStorage small
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxDim = 1200;
+      let w = img.width, h = img.height;
+      if (w > h && w > maxDim) { h = h * (maxDim / w); w = maxDim; }
+      else if (h > maxDim) { w = w * (maxDim / h); h = maxDim; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+      if (!editingTrip.photos) editingTrip.photos = [];
+      editingTrip.photos.push(dataUrl);
+      render();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePhoto(idx) {
+  if (!editingTrip.photos) return;
+  editingTrip.photos.splice(idx, 1);
+  render();
+}
+
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('show');
+}
+function closeLightbox(e) {
+  if (e) e.stopPropagation();
+  document.getElementById('lightbox').classList.remove('show');
+}
+
+/* ============================================================
+   TRIP DETAIL
+   ============================================================ */
+function renderDetail(id, trips, settings) {
+  const trip = trips.find(t => t.id === id);
+  if (!trip) { navigate('home'); return ''; }
+
+  const photosHtml = (trip.photos || []).length ? `
+    <div class="section-title">Photos &amp; receipts</div>
+    <div class="photo-grid">
+      ${trip.photos.map(p => `<div class="photo-tile" onclick="openLightbox('${p}')"><img src="${p}" alt=""></div>`).join('')}
+    </div>` : '';
+
+  return `
+  <div class="appbar with-back">
+    <button class="back-btn" onclick="navigate('home')">${ICONS.back}</button>
+    <div><h1>${escapeHtml(trip.from || '—')} → ${escapeHtml(trip.to || '—')}</h1><div class="sub">${fmtDate(trip.date)} · ${fmtKm(trip.distance)}</div></div>
+  </div>
+  <div class="page">
+    <div class="card">
+      <div class="info-line"><span class="k">Date</span><span class="v">${fmtDate(trip.date)}</span></div>
+      <div class="info-line"><span class="k">From</span><span class="v">${escapeHtml(trip.from || '—')}</span></div>
+      <div class="info-line"><span class="k">To</span><span class="v">${escapeHtml(trip.to || '—')}</span></div>
+      ${trip.purpose ? `<div class="info-line"><span class="k">Purpose</span><span class="v">${escapeHtml(trip.purpose)}</span></div>` : ''}
+      <div class="info-line"><span class="k">Distance</span><span class="v">${fmtKm(trip.distance)}</span></div>
+      ${trip.odoStart ? `<div class="info-line"><span class="k">Odometer start</span><span class="v">${trip.odoStart}</span></div>` : ''}
+      ${trip.odoEnd ? `<div class="info-line"><span class="k">Odometer end</span><span class="v">${trip.odoEnd}</span></div>` : ''}
+      <div class="info-line"><span class="k">Cumulative km</span><span class="v">${fmtKm(trip.cumulativeKm)}</span></div>
+      <div class="info-line"><span class="k">Reimbursement</span><span class="v" style="color:#2C5F4F; font-size: 15px;">${fmtEur(trip.reimbursement)}</span></div>
+    </div>
+
+    ${photosHtml}
+
+    <button class="btn-secondary" onclick="navigate('edit', { id: ${trip.id} })">Edit trip</button>
+    <button class="btn-danger" onclick="deleteTrip(${trip.id})">Delete trip</button>
+  </div>`;
+}
+
+function deleteTrip(id) {
+  if (!confirm('Permanently delete this trip?')) return;
+  const trips = loadTrips().filter(t => t.id !== id);
+  const settings = loadSettings();
+  // Recalculate
+  const sorted = [...trips].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  let cumKm = 0;
+  for (const t of sorted) {
+    t.reimbursement = calcReimbursement(parseFloat(t.distance) || 0, cumKm, settings);
+    t.cumulativeKm = cumKm + (parseFloat(t.distance) || 0);
+    cumKm = t.cumulativeKm;
+  }
+  saveTrips(sorted);
+  toast('Trip deleted');
+  navigate('home');
+}
+
+/* ============================================================
+   SUMMARY
+   ============================================================ */
+function renderSummary(trips, settings) {
+  const stats = computeYtdStats(trips, settings);
+
+  // Monthly breakdown
+  const monthly = Array.from({length: 12}, () => ({ km: 0, eur: 0, count: 0 }));
+  for (const t of trips) {
+    if (!t.date) continue;
+    const m = new Date(t.date).getMonth();
+    monthly[m].km += parseFloat(t.distance) || 0;
+    monthly[m].eur += t.reimbursement || 0;
+    monthly[m].count += 1;
+  }
+  const maxMonthKm = Math.max(...monthly.map(m => m.km), 1);
+  const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthShort = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+  const currentMonth = new Date().getMonth();
+
+  // Insight: busiest month
+  let busiestIdx = -1, busiestKm = 0;
+  monthly.forEach((m, i) => { if (m.km > busiestKm) { busiestKm = m.km; busiestIdx = i; } });
+
+  // Average per trip
+  const avgKm = trips.length ? stats.totalKm / trips.length : 0;
+  const avgEur = trips.length ? stats.totalReimburse / trips.length : 0;
+
+  // Group trips by month for cleaner list
+  const sortedTrips = [...trips].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+  const grouped = {};
+  for (const t of sortedTrips) {
+    const d = new Date(t.date);
+    const key = d.getFullYear() + '-' + String(d.getMonth()).padStart(2, '0');
+    if (!grouped[key]) grouped[key] = { label: monthLabels[d.getMonth()] + ' ' + d.getFullYear(), trips: [], km: 0, eur: 0 };
+    grouped[key].trips.push(t);
+    grouped[key].km += parseFloat(t.distance) || 0;
+    grouped[key].eur += t.reimbursement || 0;
+  }
+
+  // Active band info for hero card
+  const activeBand = getBandForKm(stats.totalKm, settings);
+  const bandIdx = settings.bands.indexOf(activeBand);
+
+  return `
+  <div class="appbar">
+    <h1>Summary</h1>
+    <div class="sub">Tax year ${settings.taxYear} · ${trips.length} trip${trips.length === 1 ? '' : 's'}</div>
+  </div>
+  <div class="page">
+
+    <!-- Hero summary card -->
+    <div class="hero-card">
+      <div class="hero-main">
+        <div class="hero-label">Total reimbursement</div>
+        <div class="hero-value">${fmtEur(stats.totalReimburse)}</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-meta">
+        <div class="hero-meta-item">
+          <div class="hm-label">Distance</div>
+          <div class="hm-value">${stats.totalKm.toLocaleString('en-IE', { maximumFractionDigits: 0 })} <span class="hm-unit">km</span></div>
+        </div>
+        <div class="hero-meta-item">
+          <div class="hm-label">Avg / trip</div>
+          <div class="hm-value">${avgKm.toFixed(0)} <span class="hm-unit">km · ${fmtEur(avgEur)}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly chart -->
+    <div class="section-title">Monthly distance</div>
+    <div class="card chart-card">
+      <div class="chart-head">
+        <div>
+          <div class="chart-peak-label">Peak month</div>
+          <div class="chart-peak-value">${busiestKm > 0 ? monthLabels[busiestIdx] + ' · ' + Math.round(busiestKm).toLocaleString() + ' km' : '—'}</div>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-yaxis">
+          <span>${Math.round(maxMonthKm).toLocaleString()}</span>
+          <span>${Math.round(maxMonthKm / 2).toLocaleString()}</span>
+          <span>0</span>
+        </div>
+        <div class="chart-bars">
+          <div class="chart-gridline" style="top: 0;"></div>
+          <div class="chart-gridline" style="top: 50%;"></div>
+          <div class="chart-gridline" style="bottom: 0;"></div>
+          ${monthly.map((m, i) => {
+            const h = m.km === 0 ? 0 : Math.max(3, (m.km / maxMonthKm) * 100);
+            const isCurrent = i === currentMonth;
+            const isPeak = i === busiestIdx && m.km > 0;
+            return `
+              <div class="chart-col">
+                <div class="chart-col-rail">
+                  ${m.km > 0 ? `<div class="chart-col-tooltip">${Math.round(m.km)} km</div>` : ''}
+                  <div class="chart-bar ${isPeak ? 'peak' : ''} ${isCurrent ? 'current' : ''}" style="height: ${h}%;"></div>
+                </div>
+                <div class="chart-label ${isCurrent ? 'current' : ''}">${monthShort[i]}</div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Rate band breakdown -->
+    <div class="section-title">Revenue rate bands</div>
+    ${settings.bands.map((b, i) => {
+      const cap = b.to === Infinity ? null : (b.to - (b.from - 1));
+      const pct = cap ? Math.min(100, (stats.bandKm[i] / cap) * 100) : (stats.bandKm[i] > 0 ? 100 : 0);
+      const isActive = i === bandIdx;
+      const km = stats.bandKm[i];
+      return `
+        <div class="band-card ${isActive ? 'active' : ''} ${km === 0 ? 'inactive' : ''}">
+          <div class="band-card-head">
+            <div>
+              <div class="band-card-name">
+                ${b.name}
+                ${isActive ? '<span class="badge-active">Active</span>' : ''}
+              </div>
+              <div class="band-card-range">${b.from.toLocaleString()} – ${b.to === Infinity ? '∞' : b.to.toLocaleString()} km · €${b.rate.toFixed(4)}/km</div>
+            </div>
+            <div class="band-card-amount">${fmtEur(stats.bandReimburse[i])}</div>
+          </div>
+          <div class="band-card-bar"><div class="band-card-fill" style="width:${pct}%;"></div></div>
+          <div class="band-card-foot">
+            <span>${Math.round(km).toLocaleString()} km used</span>
+            <span>${cap ? Math.round(cap - km).toLocaleString() + ' km left' : 'No cap'}</span>
+          </div>
+        </div>`;
+    }).join('')}
+
+    <!-- Trips grouped by month -->
+    <div class="section-title">Trip log</div>
+    ${Object.keys(grouped).length === 0 ? `
+      <div class="card"><div class="empty"><div class="empty-title">No trips yet</div><div class="empty-desc">Trips you log will appear here</div></div></div>
+    ` : Object.values(grouped).map(g => `
+      <div class="month-group">
+        <div class="month-group-head">
+          <div class="month-group-title">${g.label}</div>
+          <div class="month-group-stats">${Math.round(g.km).toLocaleString()} km · ${fmtEur(g.eur)}</div>
+        </div>
+        ${g.trips.map(t => tripRow(t)).join('')}
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+/* ============================================================
+   MORE / EXPORT / SETTINGS
+   ============================================================ */
+function renderMore() {
+  return `
+  <div class="appbar"><h1>More</h1><div class="sub">Export, settings &amp; data</div></div>
+  <div class="page">
+    <div class="section-title">Export</div>
+    <button class="list-row" onclick="navigate('export')">
+      <div class="list-icon" style="background:#E1F5EE;">${ICONS.excel}</div>
+      <div class="list-info">
+        <div class="list-title">Export &amp; share</div>
+        <div class="list-desc">Excel, PDF, or email to accountant</div>
+      </div>
+      <span class="chev">›</span>
+    </button>
+
+    <div class="section-title">Settings</div>
+    <button class="list-row" onclick="navigate('settings')">
+      <div class="list-icon" style="background:#F4F1E8;">${ICONS.settings}</div>
+      <div class="list-info">
+        <div class="list-title">Director, vehicle &amp; rates</div>
+        <div class="list-desc">Update Revenue rate bands &amp; details</div>
+      </div>
+      <span class="chev">›</span>
+    </button>
+
+    <div class="section-title">Data</div>
+    <button class="list-row" onclick="exportBackup()">
+      <div class="list-icon" style="background:#E6F1FB;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      </div>
+      <div class="list-info">
+        <div class="list-title">Backup data (JSON)</div>
+        <div class="list-desc">Save all trips to a file</div>
+      </div>
+      <span class="chev">›</span>
+    </button>
+
+    <label class="list-row" style="cursor:pointer;">
+      <div class="list-icon" style="background:#FAEEDA;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#854F0B" stroke-width="1.8"><path d="M3 9v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9M7 14l5-5 5 5M12 9v12"/></svg>
+      </div>
+      <div class="list-info">
+        <div class="list-title">Restore from backup</div>
+        <div class="list-desc">Load trips from a JSON file</div>
+      </div>
+      <span class="chev">›</span>
+      <input type="file" accept=".json" class="file-input" onchange="importBackup(event)">
+    </label>
+
+    <button class="list-row" onclick="clearAllData()" style="color:#C8453B;">
+      <div class="list-icon" style="background:#FCEBEB;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C8453B" stroke-width="1.8"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/></svg>
+      </div>
+      <div class="list-info">
+        <div class="list-title" style="color:#C8453B;">Clear all data</div>
+        <div class="list-desc">Permanently delete all trips</div>
+      </div>
+    </button>
+
+    <div style="text-align: center; margin-top: 32px; font-size: 11px; color: #888;">
+      Dublin Fuels Mileage · v1.0<br>
+      Data stored locally on this device only
+    </div>
+  </div>`;
+}
+
+function renderExport(trips, settings) {
+  const stats = computeYtdStats(trips, settings);
+  return `
+  <div class="appbar with-back">
+    <button class="back-btn" onclick="navigate('more')">${ICONS.back}</button>
+    <div><h1>Export &amp; share</h1><div class="sub">${trips.length} trips · ${fmtKm(stats.totalKm)}</div></div>
+  </div>
+  <div class="page">
+    <div class="section-title">Format</div>
+    <button class="list-row" onclick="exportExcel()">
+      <div class="list-icon" style="background:#E1F5EE;">${ICONS.excel}</div>
+      <div class="list-info">
+        <div class="list-title">Excel (.xlsx)</div>
+        <div class="list-desc">Matches your existing template</div>
+      </div>
+      <span class="chev">›</span>
+    </button>
+
+    <button class="list-row" onclick="exportPDF()">
+      <div class="list-icon" style="background:#FCEBEB;">${ICONS.pdf}</div>
+      <div class="list-info">
+        <div class="list-title">PDF report</div>
+        <div class="list-desc">Print-ready summary (uses browser print)</div>
+      </div>
+      <span class="chev">›</span>
+    </button>
+
+    <button class="list-row" onclick="exportToDrive()">
+      <div class="list-icon" style="background:#FAEEDA;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M8 2l-6 11 4 7h12l4-7-6-11z" fill="#FBBC04"/><path d="M8 2l8 14h6L14 2z" fill="#34A853" opacity="0.85"/><path d="M2 13l4 7 8-14H8z" fill="#4285F4" opacity="0.85"/></svg>
+      </div>
+      <div class="list-info">
+        <div class="list-title">Save to Google Drive</div>
+        <div class="list-desc">Opens share sheet — pick Drive</div>
+      </div>
+      <span class="chev">›</span>
+    </button>
+
+    <button class="list-row" onclick="emailExport()">
+      <div class="list-icon" style="background:#E6F1FB;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+      </div>
+      <div class="list-info">
+        <div class="list-title">Email to accountant</div>
+        <div class="list-desc">Opens your email app with summary</div>
+      </div>
+      <span class="chev">›</span>
+    </button>
+
+    <div class="card" style="margin-top: 16px; background: #F4F1E8; border: none;">
+      <div class="info-line"><span class="k">Tax year</span><span class="v">${settings.taxYear}</span></div>
+      <div class="info-line"><span class="k">Director</span><span class="v">${settings.director}</span></div>
+      <div class="info-line"><span class="k">Trips included</span><span class="v">${trips.length}</span></div>
+      <div class="info-line"><span class="k">Total km</span><span class="v">${fmtKm(stats.totalKm)}</span></div>
+      <div class="info-line"><span class="k">Total reimburse</span><span class="v" style="color:#2C5F4F;">${fmtEur(stats.totalReimburse)}</span></div>
+    </div>
+  </div>`;
+}
+
+function renderSettings(settings) {
+  return `
+  <div class="appbar with-back">
+    <button class="back-btn" onclick="navigate('more')">${ICONS.back}</button>
+    <div><h1>Settings</h1><div class="sub">Director, vehicle &amp; rate bands</div></div>
+  </div>
+  <div class="page">
+    <div class="section-title">Director &amp; vehicle</div>
+    <div class="field">
+      <label>Director name</label>
+      <input id="set-director" value="${escapeAttr(settings.director)}">
+    </div>
+    <div class="field">
+      <label>Vehicle registration</label>
+      <input id="set-vehicle" value="${escapeAttr(settings.vehicleReg)}">
+    </div>
+    <div class="field">
+      <label>Tax year</label>
+      <input id="set-year" type="number" value="${settings.taxYear}">
+    </div>
+    <div class="field">
+      <label>Company name</label>
+      <input id="set-company" value="${escapeAttr(settings.company)}">
+    </div>
+
+    <div class="section-title">Revenue rate bands (€/km)</div>
+    <p style="font-size: 12px; color: #888; margin: 0 0 12px 4px;">EV treated as 1,201–1,500cc. Update if Revenue revises rates.</p>
+
+    ${settings.bands.map((b, i) => `
+      <div class="card" style="padding: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="font-weight: 500;">${b.name}</div>
+          <div style="font-size: 12px; color: #888;">${b.from.toLocaleString()} – ${b.to === Infinity ? '∞' : b.to.toLocaleString()} km</div>
+        </div>
+        <input id="set-rate-${i}" type="number" step="0.0001" min="0" value="${b.rate}" style="width:100%;">
+      </div>
+    `).join('')}
+
+    <button class="btn-primary" onclick="saveSettingsForm()">Save settings</button>
+    <button class="btn-secondary" onclick="resetRates()">Reset rates to default</button>
+  </div>`;
+}
+
+function saveSettingsForm() {
+  const settings = loadSettings();
+  settings.director = document.getElementById('set-director').value;
+  settings.vehicleReg = document.getElementById('set-vehicle').value;
+  settings.taxYear = parseInt(document.getElementById('set-year').value) || settings.taxYear;
+  settings.company = document.getElementById('set-company').value;
+  for (let i = 0; i < settings.bands.length; i++) {
+    const v = parseFloat(document.getElementById(`set-rate-${i}`).value);
+    if (!isNaN(v)) settings.bands[i].rate = v;
+  }
+  saveSettings(settings);
+
+  // Recalculate all trip reimbursements with new rates
+  const trips = loadTrips();
+  const sorted = [...trips].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  let cumKm = 0;
+  for (const t of sorted) {
+    t.reimbursement = calcReimbursement(parseFloat(t.distance) || 0, cumKm, settings);
+    t.cumulativeKm = cumKm + (parseFloat(t.distance) || 0);
+    cumKm = t.cumulativeKm;
+  }
+  saveTrips(sorted);
+  toast('Settings saved');
+  navigate('more');
+}
+
+function resetRates() {
+  if (!confirm('Reset rate bands to Revenue defaults?')) return;
+  const s = loadSettings();
+  s.bands = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.bands));
+  saveSettings(s);
+  navigate('settings');
+}
+
+/* ============================================================
+   EXPORTS
+   ============================================================ */
+async function exportExcel() {
+  const trips = loadTrips();
+  const settings = loadSettings();
+  const stats = computeYtdStats(trips, settings);
+
+  if (typeof ExcelJS === 'undefined') {
+    toast('Excel library failed to load — check internet');
+    return;
+  }
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = settings.company;
+  wb.created = new Date();
+
+  // === Sheet 1: Trip Log ===
+  const ws1 = wb.addWorksheet('Trip Log');
+  ws1.columns = [
+    { width: 12 }, { width: 28 }, { width: 22 }, { width: 22 },
+    { width: 13 }, { width: 13 }, { width: 13 }, { width: 14 }, { width: 11 }, { width: 14 }
+  ];
+
+  ws1.mergeCells('A1:J1');
+  ws1.getCell('A1').value = settings.company.toUpperCase();
+  ws1.getCell('A1').font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF2C5F4F' } };
+  ws1.getCell('A1').alignment = { horizontal: 'center' };
+
+  ws1.mergeCells('A2:J2');
+  ws1.getCell('A2').value = 'EV MILEAGE TRIP LOG';
+  ws1.getCell('A2').font = { name: 'Arial', size: 12, bold: true };
+  ws1.getCell('A2').alignment = { horizontal: 'center' };
+
+  ws1.getCell('A4').value = 'Tax Year:';
+  ws1.getCell('B4').value = settings.taxYear;
+  ws1.getCell('D4').value = 'Total km YTD:';
+  ws1.getCell('E4').value = stats.totalKm;
+  ws1.getCell('E4').numFmt = '#,##0.0';
+  ws1.getCell('A5').value = 'Director Name:';
+  ws1.getCell('B5').value = settings.director;
+  ws1.getCell('D5').value = 'Total Reimbursement:';
+  ws1.getCell('E5').value = stats.totalReimburse;
+  ws1.getCell('E5').numFmt = '"€"#,##0.00';
+  ws1.getCell('A6').value = 'Vehicle Reg:';
+  ws1.getCell('B6').value = settings.vehicleReg;
+
+  ws1.getCell('A8').value = 'TRIP DETAILS';
+  ws1.getCell('A8').font = { bold: true, size: 11 };
+
+  const headers = ['Date', 'Purpose / Description', 'From (Location)', 'To (Location)', 'Odometer Start', 'Odometer End', 'Distance (km)', 'Cumulative km (YTD)', 'Rate (€/km)', 'Reimbursement (€)'];
+  const headerRow = ws1.getRow(9);
+  headers.forEach((h, i) => {
+    headerRow.getCell(i + 1).value = h;
+    headerRow.getCell(i + 1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.getCell(i + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2C5F4F' } };
+    headerRow.getCell(i + 1).alignment = { horizontal: 'center', wrapText: true };
+  });
+
+  const sorted = [...trips].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  let cumKm = 0;
+  sorted.forEach((t, i) => {
+    const r = ws1.getRow(10 + i);
+    const dist = parseFloat(t.distance) || 0;
+    cumKm += dist;
+    const band = getBandForKm(cumKm, settings);
+    r.getCell(1).value = t.date ? new Date(t.date) : null;
+    r.getCell(1).numFmt = 'dd/mm/yyyy';
+    r.getCell(2).value = t.purpose || '';
+    r.getCell(3).value = t.from || '';
+    r.getCell(4).value = t.to || '';
+    r.getCell(5).value = t.odoStart ? parseFloat(t.odoStart) : null;
+    r.getCell(6).value = t.odoEnd ? parseFloat(t.odoEnd) : null;
+    r.getCell(7).value = dist;
+    r.getCell(7).numFmt = '#,##0.0';
+    r.getCell(8).value = cumKm;
+    r.getCell(8).numFmt = '#,##0.0';
+    r.getCell(9).value = band.rate;
+    r.getCell(9).numFmt = '0.0000';
+    r.getCell(10).value = t.reimbursement;
+    r.getCell(10).numFmt = '"€"#,##0.00';
+  });
+
+  // Totals row
+  const totalRow = ws1.getRow(10 + sorted.length + 1);
+  totalRow.getCell(1).value = 'TOTALS';
+  totalRow.getCell(1).font = { bold: true };
+  totalRow.getCell(7).value = stats.totalKm;
+  totalRow.getCell(7).numFmt = '#,##0.0';
+  totalRow.getCell(7).font = { bold: true };
+  totalRow.getCell(10).value = stats.totalReimburse;
+  totalRow.getCell(10).numFmt = '"€"#,##0.00';
+  totalRow.getCell(10).font = { bold: true };
+
+  // === Sheet 2: Monthly Summary ===
+  const ws2 = wb.addWorksheet('Monthly Summary');
+  ws2.mergeCells('A1:N1');
+  ws2.getCell('A1').value = settings.company.toUpperCase();
+  ws2.getCell('A1').font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF2C5F4F' } };
+  ws2.getCell('A1').alignment = { horizontal: 'center' };
+
+  ws2.mergeCells('A2:N2');
+  ws2.getCell('A2').value = 'MONTHLY MILEAGE & REIMBURSEMENT SUMMARY';
+  ws2.getCell('A2').font = { bold: true, size: 12 };
+  ws2.getCell('A2').alignment = { horizontal: 'center' };
+
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  ws2.getRow(4).values = ['Metric', ...months, 'TOTAL'];
+  ws2.getRow(4).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  ws2.getRow(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2C5F4F' } };
+
+  const monthlyKm = Array(12).fill(0);
+  const monthlyEur = Array(12).fill(0);
+  for (const t of trips) {
+    if (!t.date) continue;
+    const m = new Date(t.date).getMonth();
+    monthlyKm[m] += parseFloat(t.distance) || 0;
+    monthlyEur[m] += t.reimbursement || 0;
+  }
+  ws2.getRow(5).values = ['km Travelled', ...monthlyKm, monthlyKm.reduce((a,b)=>a+b,0)];
+  ws2.getRow(6).values = ['Reimbursement (€)', ...monthlyEur, monthlyEur.reduce((a,b)=>a+b,0)];
+  for (let c = 2; c <= 14; c++) {
+    ws2.getRow(5).getCell(c).numFmt = '#,##0.0';
+    ws2.getRow(6).getCell(c).numFmt = '"€"#,##0.00';
+  }
+  ws2.columns = [{ width: 22 }, ...Array(13).fill({ width: 11 })];
+
+  // === Sheet 3: Summary & Rates ===
+  const ws3 = wb.addWorksheet('Summary & Rates');
+  ws3.columns = [{ width: 24 }, { width: 14 }, { width: 14 }, { width: 16 }, { width: 14 }];
+  ws3.mergeCells('A1:E1');
+  ws3.getCell('A1').value = settings.company.toUpperCase();
+  ws3.getCell('A1').font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF2C5F4F' } };
+  ws3.getCell('A1').alignment = { horizontal: 'center' };
+  ws3.mergeCells('A2:E2');
+  ws3.getCell('A2').value = 'EV MILEAGE SUBSISTENCE TRACKER  |  Director driving Electric Vehicle';
+  ws3.getCell('A2').alignment = { horizontal: 'center' };
+  ws3.getCell('A2').font = { italic: true };
+
+  ws3.getCell('A4').value = 'APPROVED MILEAGE RATES';
+  ws3.getCell('A4').font = { bold: true };
+  ws3.getRow(5).values = ['Rate Band', 'From (km)', 'To (km)', 'Rate (cent/km)', 'Rate (€/km)'];
+  ws3.getRow(5).font = { bold: true };
+  settings.bands.forEach((b, i) => {
+    const r = ws3.getRow(6 + i);
+    r.getCell(1).value = b.name;
+    r.getCell(2).value = b.from;
+    r.getCell(3).value = b.to === Infinity ? 'No limit' : b.to;
+    r.getCell(4).value = b.rate * 100;
+    r.getCell(4).numFmt = '0.00';
+    r.getCell(5).value = b.rate;
+    r.getCell(5).numFmt = '0.0000';
+  });
+  ws3.mergeCells('A11:E11');
+  ws3.getCell('A11').value = 'Source: Revenue Commissioners – Civil Service Rates (EV treated as 1,201–1,500cc).';
+  ws3.getCell('A11').font = { italic: true, size: 10, color: { argb: 'FF666666' } };
+
+  ws3.getCell('A13').value = 'ANNUAL SUMMARY';
+  ws3.getCell('A13').font = { bold: true };
+  const summaryData = [
+    ['Tax Year', settings.taxYear],
+    ['Director Name', settings.director],
+    ['Total km Travelled', stats.totalKm],
+    ['Total Reimbursement', stats.totalReimburse],
+    ['km in Band 1 (0–1,500)', stats.bandKm[0]],
+    ['km in Band 2 (1,501–5,500)', stats.bandKm[1]],
+    ['km in Band 3 (5,501–25,000)', stats.bandKm[2]],
+    ['km in Band 4 (25,001+)', stats.bandKm[3]],
+    ['Reimbursement – Band 1', stats.bandReimburse[0]],
+    ['Reimbursement – Band 2', stats.bandReimburse[1]],
+    ['Reimbursement – Band 3', stats.bandReimburse[2]],
+    ['Reimbursement – Band 4', stats.bandReimburse[3]],
+  ];
+  summaryData.forEach((row, i) => {
+    const r = ws3.getRow(14 + i);
+    r.getCell(1).value = row[0];
+    r.getCell(2).value = row[1];
+    if (typeof row[1] === 'number') {
+      if (row[0].includes('Reimbursement') || row[0].includes('reimburse')) r.getCell(2).numFmt = '"€"#,##0.00';
+      else if (row[0].includes('km')) r.getCell(2).numFmt = '#,##0.0';
+    }
+  });
+
+  // Generate file
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const filename = `EV_Subsistence_${settings.director.replace(/\s+/g,'_')}_${settings.taxYear}_${todayIso()}.xlsx`;
+  await shareOrDownload(blob, filename, `Mileage ${settings.taxYear} — ${settings.director}`);
+}
+
+// Tries the native share sheet first (which includes "Save to Drive" on Android),
+// falls back to a regular download if sharing isn't available or is cancelled.
+async function shareOrDownload(blob, filename, title) {
+  try {
+    const file = new File([blob], filename, { type: blob.type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title, text: title });
+      toast('Shared');
+      return;
+    }
+  } catch (err) {
+    // User cancelled the share sheet — that's fine, just stop
+    if (err && err.name === 'AbortError') return;
+    // Otherwise fall through to download
+  }
+  downloadBlob(blob, filename);
+  toast('File ready — check your downloads');
+}
+
+// Generates the Excel file and triggers Android's share sheet so the user
+// can pick "Save to Drive" (or any other share target). Falls back to a
+// regular download with a helpful tip if Web Share isn't available.
+async function exportToDrive() {
+  if (!navigator.canShare || !navigator.share) {
+    toast('Share not supported — file will download instead');
+    setTimeout(exportExcel, 800);
+    return;
+  }
+  // Just delegate to exportExcel — it already prefers shareOrDownload,
+  // which on Android shows the share sheet that includes Google Drive.
+  await exportExcel();
+}
+
+function exportPDF() {
+  // Use browser print as a simple PDF route
+  const trips = loadTrips();
+  const settings = loadSettings();
+  const stats = computeYtdStats(trips, settings);
+  const sorted = [...trips].sort((a,b) => a.date.localeCompare(b.date) || a.id - b.id);
+
+  const w = window.open('', '_blank');
+  if (!w) { toast('Please allow pop-ups to print'); return; }
+  w.document.write(`
+    <!DOCTYPE html><html><head><title>Mileage Report ${settings.taxYear}</title>
+    <style>
+      body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #1a1a1a; max-width: 900px; margin: 0 auto; }
+      h1 { color: #2C5F4F; font-size: 22px; margin: 0 0 4px; }
+      .sub { color: #666; font-size: 13px; margin-bottom: 24px; }
+      .stats { display: flex; gap: 20px; margin: 20px 0 30px; padding: 16px; background: #F4F1E8; border-radius: 8px; }
+      .stat { flex: 1; }
+      .stat-l { font-size: 11px; color: #666; text-transform: uppercase; }
+      .stat-v { font-size: 20px; font-weight: 600; color: #2C5F4F; }
+      table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      th { background: #2C5F4F; color: #fff; padding: 8px; text-align: left; font-weight: 500; }
+      td { padding: 7px 8px; border-bottom: 0.5px solid #ddd; }
+      tr:nth-child(even) td { background: #FAFAF6; }
+      .num { text-align: right; }
+      .total-row td { font-weight: 600; background: #E1F5EE !important; border-top: 2px solid #2C5F4F; }
+      @media print { body { padding: 20px; } }
+    </style>
+    </head><body>
+    <h1>${settings.company}</h1>
+    <div class="sub">EV Mileage Subsistence Report · Tax Year ${settings.taxYear} · ${settings.director} · ${settings.vehicleReg}</div>
+    <div class="stats">
+      <div class="stat"><div class="stat-l">Total km</div><div class="stat-v">${fmtKm(stats.totalKm)}</div></div>
+      <div class="stat"><div class="stat-l">Total reimbursement</div><div class="stat-v">${fmtEur(stats.totalReimburse)}</div></div>
+      <div class="stat"><div class="stat-l">Trips</div><div class="stat-v">${trips.length}</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Date</th><th>Purpose</th><th>From</th><th>To</th><th class="num">km</th><th class="num">Rate</th><th class="num">€</th></tr></thead>
+      <tbody>
+        ${sorted.map(t => `
+          <tr>
+            <td>${fmtDate(t.date)}</td>
+            <td>${escapeHtml(t.purpose || '')}</td>
+            <td>${escapeHtml(t.from || '')}</td>
+            <td>${escapeHtml(t.to || '')}</td>
+            <td class="num">${fmtKm(t.distance)}</td>
+            <td class="num">€${getBandForKm(t.cumulativeKm, settings).rate.toFixed(4)}</td>
+            <td class="num">${fmtEur(t.reimbursement)}</td>
+          </tr>`).join('')}
+        <tr class="total-row"><td colspan="4">TOTAL</td><td class="num">${fmtKm(stats.totalKm)}</td><td></td><td class="num">${fmtEur(stats.totalReimburse)}</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size: 11px; color: #666; margin-top: 20px;">Rates per Revenue Commissioners Civil Service Rates (EV: 1,201–1,500cc band).</p>
+    <script>setTimeout(() => window.print(), 300);<\/script>
+    </body></html>
+  `);
+  w.document.close();
+}
+
+function emailExport() {
+  const trips = loadTrips();
+  const settings = loadSettings();
+  const stats = computeYtdStats(trips, settings);
+  const subject = encodeURIComponent(`Mileage Subsistence ${settings.taxYear} — ${settings.director}`);
+  const body = encodeURIComponent(
+`Hello,
+
+Please find below the mileage subsistence summary for ${settings.taxYear}.
+
+Director: ${settings.director}
+Vehicle: ${settings.vehicleReg}
+Trips: ${trips.length}
+Total km: ${stats.totalKm.toFixed(1)}
+Total reimbursement: €${stats.totalReimburse.toFixed(2)}
+
+Band 1 (0–1,500 km): ${stats.bandKm[0].toFixed(1)} km / €${stats.bandReimburse[0].toFixed(2)}
+Band 2 (1,501–5,500 km): ${stats.bandKm[1].toFixed(1)} km / €${stats.bandReimburse[1].toFixed(2)}
+Band 3 (5,501–25,000 km): ${stats.bandKm[2].toFixed(1)} km / €${stats.bandReimburse[2].toFixed(2)}
+Band 4 (25,001+ km): ${stats.bandKm[3].toFixed(1)} km / €${stats.bandReimburse[3].toFixed(2)}
+
+Detailed trip log attached separately as Excel.
+
+Regards,
+${settings.director}`);
+  window.location.href = `mailto:?subject=${subject}&body=${body}`;
+}
+
+function exportBackup() {
+  const data = {
+    settings: loadSettings(),
+    trips: loadTrips(),
+    exported: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, `mileage_backup_${todayIso()}.json`);
+  toast('Backup downloaded');
+}
+
+function importBackup(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.trips) saveTrips(data.trips);
+      if (data.settings) saveSettings(data.settings);
+      toast('Backup restored');
+      navigate('home');
+    } catch (err) {
+      toast('Invalid backup file');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function clearAllData() {
+  if (!confirm('Delete ALL trips and settings? This cannot be undone.')) return;
+  if (!confirm('Are you absolutely sure? Consider exporting a backup first.')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(SETTINGS_KEY);
+  navigate('home');
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ============================================================
+   TAB BAR
+   ============================================================ */
+function renderTabs(active) {
+  return `
+  <nav class="tabbar">
+    <button class="tab ${active==='home'?'active':''}" onclick="navigate('home')">${ICONS.home}<span>Home</span></button>
+    <button class="tab ${active==='gps'?'active':''}" onclick="navigate('gps')">${ICONS.log}<span>Log trip</span></button>
+    <button class="tab ${active==='summary'?'active':''}" onclick="navigate('summary')">${ICONS.chart}<span>Summary</span></button>
+    <button class="tab ${active==='more'?'active':''}" onclick="navigate('more')">${ICONS.more}<span>More</span></button>
+  </nav>`;
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+render();
+</script>
+</body>
+</html>
